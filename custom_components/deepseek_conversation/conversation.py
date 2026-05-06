@@ -1,6 +1,7 @@
 """Conversation support for DeepSeek."""
 
 from collections.abc import AsyncGenerator, Callable
+import datetime
 import json
 # Removed Literal import as it might not be strictly needed now
 from typing import Any, AsyncGenerator, Callable, Literal, cast, Optional, Union, Dict, List
@@ -59,6 +60,32 @@ from .const import (
 
 # Max number of back and forth with the LLM for tool usage
 MAX_TOOL_ITERATIONS = 10
+
+
+class _HAJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles HA types not supported by the stdlib encoder.
+
+    Home Assistant's LLM tool results (e.g. IntentResponseDict.speech_slots)
+    can contain ``datetime.time`` / ``datetime.date`` / ``datetime.datetime``
+    objects.  The stdlib ``json`` module raises a ``TypeError`` for these;
+    this encoder serialises them as ISO-8601 strings instead.
+
+    For any other unknown type, a ``str()`` representation is used as a
+    safe fallback so that serialisation never crashes the pipeline.
+    """
+
+    def default(self, obj: Any) -> Any:  # noqa: ANN401
+        if isinstance(obj, (datetime.time, datetime.date, datetime.datetime)):
+            return obj.isoformat()
+        # Fallback: convert unknown types to string instead of crashing.
+        try:
+            return super().default(obj)
+        except TypeError:
+            LOGGER.debug(
+                "_HAJSONEncoder: falling back to str() for unserializable type %s",
+                type(obj).__name__,
+            )
+            return str(obj)
 
 
 def _is_deepseek_reasoner_model(model: str) -> bool:
@@ -169,7 +196,7 @@ def _convert_content_to_messages(
                 tool_calls = formatted_tool_calls
         elif isinstance(content, conversation.ToolResultContent):
             role = "tool"
-            message_content = json.dumps(content.tool_result)
+            message_content = json.dumps(content.tool_result, cls=_HAJSONEncoder)
             tool_call_id = content.tool_call_id
 
         if role:
@@ -510,7 +537,7 @@ class DeepSeekConversationEntity(
         initial_messages = _convert_content_to_messages(
             chat_log.content, model=model, thinking_enabled=thinking_on
         )
-        LOGGER.debug("Sending messages to DeepSeek (excluding system): %s", json.dumps(initial_messages, indent=2))
+        LOGGER.debug("Sending messages to DeepSeek (excluding system): %s", json.dumps(initial_messages, indent=2, cls=_HAJSONEncoder))
         # --- End Convert ---
 
         def _build_model_args(messages: list[dict[str, Any]]) -> dict[str, Any]:
