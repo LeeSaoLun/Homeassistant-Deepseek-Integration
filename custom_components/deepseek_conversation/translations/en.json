@@ -35,6 +35,7 @@
                         "top_p": "Top P",
                         "temperature": "Temperature",
                         "thinking_enabled": "Enable reasoning",
+                        "strip_markdown": "Strip markdown for voice assistants",
                         "reasoning_effort": "Reasoning effort"
                     },
                     "selector": {

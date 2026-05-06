@@ -24,6 +24,7 @@ CONF_TEMPERATURE = "temperature"
 CONF_TOP_P = "top_p"
 CONF_THINKING_ENABLED = "thinking_enabled"
 CONF_REASONING_EFFORT = "reasoning_effort"
+CONF_STRIP_MARKDOWN = "strip_markdown"
 CONF_API_KEY = "api_key" # Already defined in homeassistant.const, but useful here
 CONF_BASE_URL = "base_url" # Added for clarity, though set internally
 
@@ -45,6 +46,7 @@ RECOMMENDED_MAX_TOKENS = 1500
 RECOMMENDED_TEMPERATURE = 1.0
 RECOMMENDED_TOP_P = 1.0
 DEFAULT_THINKING_ENABLED = False
+DEFAULT_STRIP_MARKDOWN = False
 # DeepSeek thinking mode: API accepts low/medium/high/max/xhigh (low/medium→high, xhigh→max).
 REASONING_EFFORT_SELECT: tuple[tuple[str, str], ...] = (
     ("low", "Low"),

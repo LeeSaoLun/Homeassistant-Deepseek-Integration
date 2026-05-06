@@ -43,9 +43,11 @@ from .const import (
     CONF_REASONING_EFFORT,
     CONF_TEMPERATURE,
     CONF_THINKING_ENABLED,
+    CONF_STRIP_MARKDOWN,
     CONF_TOP_P,
     CONF_BASE_URL,
     DEFAULT_THINKING_ENABLED,
+    DEFAULT_STRIP_MARKDOWN,
     DOMAIN,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
@@ -94,6 +96,7 @@ DEFAULT_OPTIONS = {
     CONF_TEMPERATURE: RECOMMENDED_TEMPERATURE,
     CONF_TOP_P: RECOMMENDED_TOP_P,
     CONF_THINKING_ENABLED: DEFAULT_THINKING_ENABLED,
+    CONF_STRIP_MARKDOWN: DEFAULT_STRIP_MARKDOWN,
     CONF_REASONING_EFFORT: RECOMMENDED_REASONING_EFFORT,
 }
 
@@ -316,6 +319,15 @@ def deepseek_config_option_schema(
                 )
             },
             default=options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED),
+        ): BooleanSelector(),
+        vol.Optional(
+            CONF_STRIP_MARKDOWN,
+            description={
+                "suggested_value": options.get(
+                    CONF_STRIP_MARKDOWN, DEFAULT_STRIP_MARKDOWN
+                )
+            },
+            default=options.get(CONF_STRIP_MARKDOWN, DEFAULT_STRIP_MARKDOWN),
         ): BooleanSelector(),
         vol.Optional(
             CONF_REASONING_EFFORT,

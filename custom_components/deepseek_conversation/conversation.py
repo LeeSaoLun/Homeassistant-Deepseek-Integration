@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator, Callable
 import datetime
 import json
+import re
 # Removed Literal import as it might not be strictly needed now
 from typing import Any, AsyncGenerator, Callable, Literal, cast, Optional, Union, Dict, List
 
@@ -46,8 +47,10 @@ from .const import (
     CONF_REASONING_EFFORT,
     CONF_TEMPERATURE,
     CONF_THINKING_ENABLED,
+    CONF_STRIP_MARKDOWN,
     CONF_TOP_P,
     DEFAULT_THINKING_ENABLED,
+    DEFAULT_STRIP_MARKDOWN,
     DOMAIN, # Use updated domain
     LOGGER, # Use the logger from const
     RECOMMENDED_CHAT_MODEL,
@@ -86,6 +89,36 @@ class _HAJSONEncoder(json.JSONEncoder):
                 type(obj).__name__,
             )
             return str(obj)
+
+
+def _strip_markdown(text: str) -> str:
+    """Strip common markdown formatting for TTS readability."""
+    if not text:
+        return text
+    
+    # Remove blockquotes
+    text = re.sub(r'(?m)^\s*>\s+', '', text)
+    # Remove headings
+    text = re.sub(r'(?m)^#{1,6}\s+', '', text)
+    # Remove bold/italic (asterisks and underscores)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    text = re.sub(r'_(.*?)_', r'\1', text)
+    # Remove strikethrough
+    text = re.sub(r'~~(.*?)~~', r'\1', text)
+    # Remove inline code
+    text = re.sub(r'`(.*?)`', r'\1', text)
+    # Remove links (replace with just the text)
+    text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
+    # Remove list formatting
+    text = re.sub(r'(?m)^\s*[-*+]\s+', '', text)
+    # Remove code blocks
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    # Remove arrows
+    text = text.replace('→', '').replace('->', '')
+    
+    return text.strip()
 
 
 def _is_deepseek_reasoner_model(model: str) -> bool:
@@ -702,6 +735,10 @@ class DeepSeekConversationEntity(
                 "DeepSeek: empty speech after tool loop; tail=%s",
                 [(type(c).__name__, getattr(c, "role", None)) for c in chat_log.content[-6:]],
             )
+        
+        if options.get(CONF_STRIP_MARKDOWN, DEFAULT_STRIP_MARKDOWN):
+            speech_text = _strip_markdown(speech_text)
+
         intent_response.async_set_speech(speech_text)
 
         return conversation.ConversationResult(

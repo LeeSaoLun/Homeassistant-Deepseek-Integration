@@ -35,6 +35,7 @@
                         "top_p": "Top P",
                         "temperature": "温度",
                         "thinking_enabled": "启用推理",
+                        "strip_markdown": "移除语音助手的 Markdown",
                         "reasoning_effort": "推理强度"
                     },
                     "selector": {
