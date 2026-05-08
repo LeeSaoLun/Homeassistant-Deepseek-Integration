@@ -88,8 +88,12 @@ jobs:
           set -euo pipefail
           tag="${{ steps.manifest.outputs.tag }}"
           last_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          # Random delimiter so commit messages cannot accidentally close the
+          # multiline output value (GitHub heredoc syntax requires an UNQUOTED
+          # delimiter; plain "EOF" is fragile if a commit message contains it).
+          delim="EOF_$(openssl rand -hex 16)"
           {
-            echo "body<<'EOF'"
+            echo "body<<${delim}"
             echo "## Änderungen"
             echo
             if [ -n "$last_tag" ]; then
@@ -100,7 +104,7 @@ jobs:
               git log --no-merges --pretty=format:"- %s (%h)"
             fi
             echo
-            echo "EOF"
+            echo "${delim}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Create Git tag
