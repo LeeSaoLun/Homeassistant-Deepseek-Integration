@@ -280,7 +280,7 @@ async def async_run_debug_suite(
         out["llm"] = {
             "selected_api_id": sel,
             "registered_apis": api_rows,
-            "selected_exists": bool(sel and any(a.id == sel for a in apis)),
+            "selected_exists": bool(sel and any(a.id in sel for a in apis)),
         }
         log(f"LLM APIs registered={len(api_rows)} selected={sel!r} exists={out['llm']['selected_exists']}")
     except Exception as e:

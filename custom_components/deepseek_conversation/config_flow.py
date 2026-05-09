@@ -89,7 +89,7 @@ def get_user_step_schema() -> vol.Schema:
 
 # Add CONF_LLM_HASS_API back to default options if desired, e.g., default to Assist
 DEFAULT_OPTIONS = {
-    CONF_LLM_HASS_API: llm.LLM_API_ASSIST, # Default to Assist API
+    CONF_LLM_HASS_API: [llm.LLM_API_ASSIST], # Default to Assist API
     CONF_PROMPT: DEFAULT_SYSTEM_PROMPT,
     CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
     CONF_MAX_TOKENS: RECOMMENDED_MAX_TOKENS, # Remember to increase this in UI!
@@ -126,7 +126,18 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
 class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for DeepSeek Conversation."""
 
-    VERSION = 1 # Consider incrementing if significant changes are made
+    VERSION = 2
+
+    @staticmethod
+    async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+        """Migrate config entry to version 2 — wrap legacy string CONF_LLM_HASS_API in a list."""
+        if entry.version < 2:
+            options = {**entry.options}
+            legacy = options.get(CONF_LLM_HASS_API)
+            if isinstance(legacy, str):
+                options[CONF_LLM_HASS_API] = [legacy] if legacy != "none" else []
+            hass.config_entries.async_update_entry(entry, options=options, version=2)
+        return True
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -199,8 +210,8 @@ class DeepSeekOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             # Handle CONF_LLM_HASS_API selection
-            if user_input.get(CONF_LLM_HASS_API) == "none":
-                 user_input.pop(CONF_LLM_HASS_API, None)
+            if isinstance(user_input.get(CONF_LLM_HASS_API), list) and not user_input[CONF_LLM_HASS_API]:
+                user_input.pop(CONF_LLM_HASS_API, None)
 
             # Handle base URL update - move it from options to data if changed
             base_url_changed = False
@@ -247,12 +258,9 @@ def deepseek_config_option_schema(
     """Return a schema for DeepSeek completion options."""
     # Re-add HASS API selection
     hass_apis: list[SelectOptionDict] = [
-        SelectOptionDict(label="No control", value="none")
-    ]
-    hass_apis.extend(
         SelectOptionDict(label=api.name, value=api.id)
         for api in llm.async_get_apis(hass)
-    )
+    ]
 
     # Get base URL from config entry data if available, otherwise from options or default
     base_url = DEEPSEEK_API_BASE_URL
@@ -285,8 +293,8 @@ def deepseek_config_option_schema(
         vol.Optional(
             CONF_LLM_HASS_API,
             description={"suggested_value": options.get(CONF_LLM_HASS_API)},
-            default=options.get(CONF_LLM_HASS_API) or "none",
-        ): SelectSelector(SelectSelectorConfig(options=hass_apis)),
+            default=options.get(CONF_LLM_HASS_API),
+        ): SelectSelector(SelectSelectorConfig(options=hass_apis, multiple=True)),
         vol.Optional(
             CONF_CHAT_MODEL,
             description={"suggested_value": options.get(CONF_CHAT_MODEL)},
