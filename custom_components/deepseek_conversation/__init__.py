@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import base64
-from mimetypes import guess_file_type
-from pathlib import Path
-import logging # Use logging instead of LOGGER directly if needed elsewhere
+from contextlib import suppress
 
 import openai
-# Removed OpenAI specific response/image types not directly used or replaced
-# from openai.types.images_response import ImagesResponse
-# from openai.types.responses import (...)
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry  # pyright: ignore[reportMissingImports]
@@ -28,49 +22,65 @@ from homeassistant.exceptions import (  # pyright: ignore[reportMissingImports]
     HomeAssistantError,
     ServiceValidationError,
 )
-from homeassistant.helpers import config_validation as cv, selector  # pyright: ignore[reportMissingImports]
+from homeassistant.helpers import (  # pyright: ignore[reportMissingImports]
+    config_validation as cv,
+    selector,
+    translation,
+)
 from homeassistant.helpers.httpx_client import get_async_client  # pyright: ignore[reportMissingImports]
 from homeassistant.helpers.typing import ConfigType  # pyright: ignore[reportMissingImports]
-from typing import TypeAlias  # pyright: ignore[reportMissingImports]
 
 from .api_errors import openai_exception_user_message
-from .debug import async_run_debug_suite
-
-# Updated imports from const.py
+from .config_flow import async_probe_deepseek_client
 from .const import (
-    coerce_max_tokens,
-    DEFAULT_SYSTEM_PROMPT,
+    build_generate_content_completion_args,
+    CONF_BASE_URL,
     CONF_CHAT_MODEL,
     CONF_FILENAMES,
     CONF_MAX_TOKENS,
     CONF_PROMPT,
-    CONF_REASONING_EFFORT,
+    CONF_RESPONSE_FORMAT,
     CONF_TEMPERATURE,
     CONF_THINKING_ENABLED,
-    CONF_TOP_P,
-    CONF_BASE_URL,
-    DEFAULT_THINKING_ENABLED,
-    DOMAIN, # Use the updated domain
-    LOGGER, # Keep using the logger from const
-    RECOMMENDED_CHAT_MODEL,
-    RECOMMENDED_MAX_TOKENS,
-    RECOMMENDED_REASONING_EFFORT,
-    RECOMMENDED_TEMPERATURE,
-    RECOMMENDED_TOP_P,
-    DEEPSEEK_API_BASE_URL, # Use the base URL constant
-    deepseek_chat_thinking_params,
+    DEFAULT_SYSTEM_PROMPT,
+    DEEPSEEK_API_BASE_URL,
+    DOMAIN,
+    effective_thinking_enabled_for_generate_content,
+    LOGGER,
+    MAX_TOKENS_UPPER_BOUND,
+    reasoning_text_from_chat_message,
+    RESPONSE_FORMAT_JSON_OBJECT,
+)
+from .debug import async_run_debug_suite
+from .types import DeepSeekConfigEntry, DeepSeekRuntimeData
+from .usage_metrics import UsageTracker, completion_usage_from_api
+from .vision import (
+    async_image_parts_from_filenames,
+    raise_if_vision_unsupported_for_api,
+    vision_enabled_in_options,
 )
 
-# Removed SERVICE_GENERATE_IMAGE
+
 SERVICE_GENERATE_CONTENT = "generate_content"
 SERVICE_RUN_DEBUG = "run_debug"
 
-# Only conversation platform remains
-PLATFORMS = (Platform.CONVERSATION,)
+PLATFORMS = (Platform.CONVERSATION, Platform.SENSOR, Platform.BUTTON)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-# Define type alias using the updated domain if needed, or keep generic
-DeepSeekConfigEntry: TypeAlias = ConfigEntry[openai.AsyncClient]
+
+async def _async_localize(
+    hass: HomeAssistant, key: str, **placeholders: str
+) -> str:
+    """Return a localized string from this integration's ``common`` translations."""
+    localize_key = f"component.{DOMAIN}.common.{key}"
+    strings = await translation.async_get_translations(
+        hass, hass.config.language, "common", integrations=[DOMAIN]
+    )
+    message = strings.get(localize_key, key)
+    if placeholders:
+        with suppress(KeyError):
+            message = message.format(**placeholders)
+    return message
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -84,19 +94,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def encode_file(file_path: str) -> tuple[str, str]:
-    """Return base64 version of file contents."""
-    mime_type, _ = guess_file_type(file_path)
-    if mime_type is None:
-        mime_type = "application/octet-stream"
-    with open(file_path, "rb") as image_file:
-        return (mime_type, base64.b64encode(image_file.read()).decode("utf-8"))
-
-
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up DeepSeek Conversation."""
-
-    # Removed render_image service definition
 
     async def send_prompt(call: ServiceCall) -> ServiceResponse:
         """Send a prompt to DeepSeek and return the response."""
@@ -110,101 +109,66 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 translation_placeholders={"config_entry": entry_id},
             )
 
-        model: str = entry.options.get(CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL)
-        client: openai.AsyncClient = entry.runtime_data
+        runtime: DeepSeekRuntimeData = entry.runtime_data
+        client: openai.AsyncClient = runtime.client
 
-        # --- Adapt message format for chat.completions.create ---
-        messages = []
+        messages: list[dict[str, object]] = []
         system_prompt = (entry.options.get(CONF_PROMPT) or "").strip() or DEFAULT_SYSTEM_PROMPT
         messages.append({"role": "system", "content": system_prompt})
 
-        # Handle user prompt and potential files (basic text for now)
-        user_content = [{"type": "text", "text": call.data[CONF_PROMPT]}]
+        user_content: list[dict[str, object]] = [
+            {"type": "text", "text": call.data[CONF_PROMPT]}
+        ]
 
-        # File handling - NOTE: DeepSeek API might require different format or not support
-        # files via OpenAI library directly. This part might need adjustment based on
-        # DeepSeek's specific multimodal capabilities and API structure.
-        # Keeping basic structure, assuming text/image URL format might work.
-        async def append_files_to_content() -> None:
-            for filename in call.data.get(CONF_FILENAMES, []):
-                if not hass.config.is_allowed_path(filename):
-                    LOGGER.warning(
-                        "Cannot read %s, no access to path; "
-                        "`allowlist_external_dirs` may need to be adjusted in "
-                        "`configuration.yaml`", filename
-                    )
-                    continue # Skip this file
-                if not Path(filename).exists():
-                    LOGGER.warning("%s does not exist", filename)
-                    continue # Skip this file
-
-                try:
-                    mime_type, base64_file = await hass.async_add_executor_job(
-                        encode_file, filename
-                    )
-                    if "image/" in mime_type:
-                        # Using standard image URL format for messages
-                        user_content.append(
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{base64_file}",
-                                    # "detail": "auto" # Detail might not be supported
-                                }
-                            }
-                        )
-                    # Add handling for other file types if DeepSeek supports them
-                    # elif "application/pdf" in mime_type:
-                    #    ...
-                    else:
-                        LOGGER.warning(
-                            "Skipping file %s: Unsupported file type %s for DeepSeek via this integration.",
-                            filename, mime_type
-                        )
-                except Exception as e:
-                     LOGGER.error("Error processing file %s: %s", filename, e)
-
-
-        if CONF_FILENAMES in call.data:
-            await append_files_to_content()
+        filenames = call.data.get(CONF_FILENAMES, [])
+        if filenames:
+            if not vision_enabled_in_options(entry.options):
+                raise HomeAssistantError(
+                    "Vision is disabled in DeepSeek options. Enable "
+                    "'Allow vision' or remove filenames from the service call."
+                )
+            raise_if_vision_unsupported_for_api(
+                entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL)
+            )
+            user_content.extend(
+                await async_image_parts_from_filenames(hass, filenames)
+            )
 
         messages.append({"role": "user", "content": user_content})
-        # --- End of message format adaptation ---
 
+        usage_payload: dict[str, int] | None = None
+        response_text = ""
+        thinking_on = effective_thinking_enabled_for_generate_content(
+            entry.options, call.data
+        )
         try:
-            # --- Switched to client.chat.completions.create ---
-            thinking_on = entry.options.get(
-                CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED
+            model, model_args = build_generate_content_completion_args(
+                entry_options=entry.options,
+                messages=messages,
+                service_data=call.data,
             )
-            model_args = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": coerce_max_tokens(
-                    entry.options.get(CONF_MAX_TOKENS, RECOMMENDED_MAX_TOKENS)
-                ),
-                "top_p": entry.options.get(CONF_TOP_P, RECOMMENDED_TOP_P),
-                "temperature": entry.options.get(
-                    CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE
-                ),
-                # 'user': call.context.user_id, # Optional: Check if DeepSeek uses this
-                "stream": False, # Service call expects a single response
-                **deepseek_chat_thinking_params(
-                    thinking_enabled=thinking_on,
-                    reasoning_effort=entry.options.get(
-                        CONF_REASONING_EFFORT, RECOMMENDED_REASONING_EFFORT
-                    ),
-                ),
-            }
-
-            # Removed OpenAI specific 'reasoning' and 'store' args
-            # if model.startswith("o"): ...
-
+            LOGGER.debug(
+                "[Debug generate_content]: model=%s thinking=%s overrides=%s",
+                model,
+                thinking_on,
+                {
+                    k: call.data[k]
+                    for k in (
+                        CONF_CHAT_MODEL,
+                        CONF_TEMPERATURE,
+                        CONF_THINKING_ENABLED,
+                        CONF_MAX_TOKENS,
+                        CONF_RESPONSE_FORMAT,
+                    )
+                    if k in call.data
+                },
+            )
             response = await client.chat.completions.create(**model_args)
-            # --- End of API call change ---
-
-            # Extract response text
-            # Assuming response structure is similar to OpenAI's chat completion
-            response_text = response.choices[0].message.content
+            message = response.choices[0].message
+            response_text = message.content or ""
+            if (parsed := completion_usage_from_api(response.usage)) is not None:
+                runtime.usage.record(parsed, source="generate_content")
+                usage_payload = runtime.usage.usage_as_dict(parsed)
 
         except openai.AuthenticationError as err:
             LOGGER.error("DeepSeek API key rejected: %s", err)
@@ -221,7 +185,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             LOGGER.error("Error preparing input for DeepSeek: %s", err)
             raise HomeAssistantError(f"Error preparing input: {err}") from err
 
-        return {"text": response_text or ""}
+        result: dict[str, object] = {"text": response_text}
+        if thinking_on:
+            reasoning_text = reasoning_text_from_chat_message(message)
+            result["reasoning"] = reasoning_text
+            LOGGER.debug(
+                "[Debug generate_content]: reasoning chars=%d",
+                len(reasoning_text),
+            )
+        if usage_payload is not None:
+            result["usage"] = usage_payload
+        return result
 
     async def run_debug(call: ServiceCall) -> ServiceResponse:
         """Run DeepSeek diagnostics and write ``/config/deepseek_conversation_debug_report.txt``."""
@@ -238,25 +212,39 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         path = report.get("report_path", "")
         summary = report.get("summary") or report.get("tests", {}).get("summary", {})
         parts = [
-            f"Bericht: {path}",
+            await _async_localize(hass, "debug_notification_report", path=path),
             "",
-            f"Zusammenfassung: {summary}",
+            await _async_localize(
+                hass, "debug_notification_summary", summary=str(summary)
+            ),
             "",
-            "Fehler (falls vorhanden):",
+            await _async_localize(hass, "debug_notification_errors_heading"),
         ]
         fails: list[str] = []
         for name, body in report.get("tests", {}).items():
             if name in ("summary", "client"):
                 continue
             if isinstance(body, dict) and body.get("ok") is False:
-                fails.append(f"- {name}: {str(body.get('error', body))[:600]}")
-        parts.extend(fails if fails else ["(keine)"])
+                error_text = str(body.get("error", body))[:600]
+                fails.append(
+                    await _async_localize(
+                        hass,
+                        "debug_notification_error_line",
+                        name=name,
+                        error=error_text,
+                    )
+                )
+        parts.extend(
+            fails
+            if fails
+            else [await _async_localize(hass, "debug_notification_no_errors")]
+        )
         parts.append("")
-        parts.append("Details: Berichtdatei öffnen (Text + JSON-Anhang).")
+        parts.append(await _async_localize(hass, "debug_notification_details"))
         msg = "\n".join(parts)[:15000]
         persistent_notification.async_create(
             hass,
-            title="DeepSeek-Debug abgeschlossen",
+            title=await _async_localize(hass, "debug_notification_title"),
             message=msg,
             notification_id="deepseek_conversation_debug_done",
         )
@@ -269,7 +257,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "log_excerpt_chars": report.get("log_excerpt_chars", 0),
         }
 
-    # Register the generate_content service
     hass.services.async_register(
         DOMAIN,
         SERVICE_GENERATE_CONTENT,
@@ -277,14 +264,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         schema=vol.Schema(
             {
                 vol.Required("config_entry"): selector.ConfigEntrySelector(
-                    {
-                        "integration": DOMAIN, # Use updated domain
-                    }
+                    {"integration": DOMAIN},
                 ),
                 vol.Required(CONF_PROMPT): cv.string,
-                # Keep filenames optional, but functionality depends on DeepSeek support
                 vol.Optional(CONF_FILENAMES, default=[]): vol.All(
                     cv.ensure_list, [cv.string]
+                ),
+                vol.Optional(CONF_CHAT_MODEL): cv.string,
+                vol.Optional(CONF_TEMPERATURE): vol.All(
+                    vol.Coerce(float), vol.Range(min=0, max=2)
+                ),
+                vol.Optional(CONF_THINKING_ENABLED): cv.boolean,
+                vol.Optional(CONF_MAX_TOKENS): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=MAX_TOKENS_UPPER_BOUND)
+                ),
+                vol.Optional(CONF_RESPONSE_FORMAT): vol.In(
+                    [RESPONSE_FORMAT_JSON_OBJECT]
                 ),
             }
         ),
@@ -308,8 +303,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         supports_response=SupportsResponse.ONLY,
     )
 
-    # Removed registration for generate_image service
-
     return True
 
 
@@ -322,14 +315,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
         http_client=get_async_client(hass),
     )
 
-    # Validate the connection using ``models.list()`` instead of a chat
-    # completion: it does not consume tokens / quota on the DeepSeek free tier
-    # and still surfaces auth failures. Some OpenAI-compatible gateways do not
-    # implement ``/models``; in that case we skip the probe and let the first
-    # real conversation call surface any auth issue (which then triggers
-    # reauth via ``ConfigEntryAuthFailed``).
     try:
-        await client.with_options(timeout=10.0).models.list()
+        await async_probe_deepseek_client(client)
     except openai.AuthenticationError as err:
         LOGGER.error("Invalid DeepSeek API key: %s", err)
         raise ConfigEntryAuthFailed("Invalid DeepSeek API key") from err
@@ -337,21 +324,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
         if err.status_code in (401, 403):
             LOGGER.error("DeepSeek rejected credentials (%s): %s", err.status_code, err)
             raise ConfigEntryAuthFailed("Invalid DeepSeek credentials") from err
-        if err.status_code in (404, 405, 501):
-            LOGGER.debug(
-                "DeepSeek base URL does not implement /models (%s); "
-                "skipping setup probe",
-                err.status_code,
-            )
-        else:
-            LOGGER.warning(
-                "Unexpected DeepSeek status during setup probe (%s): %s",
-                err.status_code,
-                err,
-            )
-            raise ConfigEntryNotReady(
-                f"DeepSeek API returned {err.status_code}: {err}"
-            ) from err
+        LOGGER.warning(
+            "Unexpected DeepSeek status during setup probe (%s): %s",
+            err.status_code,
+            err,
+        )
+        raise ConfigEntryNotReady(
+            f"DeepSeek API returned {err.status_code}: {err}"
+        ) from err
     except openai.APIConnectionError as err:
         LOGGER.error("Failed to connect to DeepSeek API: %s", err)
         raise ConfigEntryNotReady(
@@ -361,26 +341,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
         LOGGER.error("DeepSeek SDK error during setup: %s", err)
         raise ConfigEntryNotReady(f"DeepSeek API error: {err}") from err
 
-    entry.runtime_data = client
+    entry.runtime_data = DeepSeekRuntimeData(client=client, usage=UsageTracker())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload DeepSeek and close the underlying OpenAI client.
+async def async_unload_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> bool:
+    """Unload DeepSeek platforms.
 
-    The OpenAI ``AsyncClient`` owns an httpx connection pool; HA recreates the
-    entry on every options-update via ``async_reload``, so without an explicit
-    ``close()`` the pool would leak per reload.
+    The OpenAI client is built on Home Assistant's shared httpx client (see
+    ``get_async_client`` in ``async_setup_entry``). That connection pool is owned
+    by HA and must not be closed here — doing so only triggers a framework warning
+    without releasing anything — so unload just tears down the platforms.
     """
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    client: openai.AsyncClient | None = getattr(entry, "runtime_data", None)
-    if client is not None:
-        try:
-            await client.close()
-        except (openai.OpenAIError, OSError, RuntimeError) as err:
-            LOGGER.debug("Error closing DeepSeek client on unload: %s", err)
-    return unload_ok
-
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

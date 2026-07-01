@@ -1,4 +1,52 @@
 {
+    "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "Prompt-Token"
+            },
+            "completion_tokens": {
+                "name": "Completion-Token"
+            },
+            "total_tokens": {
+                "name": "Token gesamt"
+            },
+            "last_request_tokens": {
+                "name": "Letzte Anfrage (Token)"
+            },
+            "reasoning_tokens": {
+                "name": "Reasoning-Token"
+            },
+            "api_requests": {
+                "name": "API-Anfragen"
+            },
+            "last_request_prompt_tokens": {
+                "name": "Letzte Anfrage Prompt-Token"
+            },
+            "last_request_completion_tokens": {
+                "name": "Letzte Anfrage Completion-Token"
+            }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "Nutzung zurücksetzen"
+            }
+        }
+    },
+    "common": {
+        "debug_notification_title": "DeepSeek-Debug abgeschlossen",
+        "debug_notification_report": "Bericht: {path}",
+        "debug_notification_summary": "Zusammenfassung: {summary}",
+        "debug_notification_errors_heading": "Fehler (falls vorhanden):",
+        "debug_notification_no_errors": "(keine)",
+        "debug_notification_error_line": "- {name}: {error}",
+        "debug_notification_details": "Details: Berichtdatei öffnen (Text + JSON-Anhang)."
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "Konfigurationseintrag \"{config_entry}\" wurde nicht gefunden oder gehört nicht zu DeepSeek Conversation."
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -9,6 +57,27 @@
                     "chat_model": "Modell"
                 },
                 "description": "Verbindung zur DeepSeek-API. Standard ist DeepSeek V4 Flash. Die Legacy-Namen deepseek-chat und deepseek-reasoner funktionieren noch, entfallen aber ab 2026-07-24 — rechtzeitig auf V4 umstellen."
+            },
+            "reauth_confirm": {
+                "title": "DeepSeek erneut anmelden",
+                "description": "Dein DeepSeek-API-Schlüssel wurde abgelehnt. Gib einen gültigen API-Schlüssel ein, um die Integration wiederherzustellen.",
+                "data": {
+                    "api_key": "API-Schlüssel"
+                },
+                "data_description": {
+                    "api_key": "API-Schlüssel von platform.deepseek.com"
+                }
+            },
+            "reconfigure": {
+                "title": "DeepSeek neu konfigurieren",
+                "description": "API-Schlüssel oder Basis-URL ändern. Assist- und Modell-Einstellungen bleiben unverändert.",
+                "data": {
+                    "api_key": "API-Schlüssel",
+                    "base_url": "API-Basis-URL"
+                },
+                "data_description": {
+                    "api_key": "API-Schlüssel von platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -19,28 +88,54 @@
             "url_required": "Basis-URL ist erforderlich"
         },
         "abort": {
-            "already_configured": "Bereits konfiguriert"
+            "already_configured": "Bereits konfiguriert",
+            "reauth_successful": "Erneute Anmeldung war erfolgreich.",
+            "reconfigure_successful": "Neu konfigurieren war erfolgreich."
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "Der Konfigurationseintrag ist nicht mehr verfügbar."
+        },
+        "error": {
+            "cannot_connect": "Verbindung nicht möglich",
+            "invalid_auth": "Ungültige Anmeldung",
+            "api_error": "API-Fehler",
+            "unknown": "Unbekannter Fehler",
+            "url_required": "Basis-URL ist erforderlich"
+        },
         "step": {
             "init": {
                 "title": "DeepSeek-Optionen",
-                "description": "DeepSeek V4 nutzt ein Modell für Chat und Reasoning: „Reasoning aktivieren“ schaltet das API-Denken (extra_body) ein. Reasoning-Aufwand gilt nur bei aktiviertem Reasoning. Temperatur und Top-P werden bei aktivem Reasoning nicht gesendet. Legacy-Modell-IDs funktionieren bis 2026-07-24.",
+                "description": "Assist, Modell und API-Verhalten. API-Schlüssel oder Basis-URL änderst du über das Integrationsmenü (⋮ → Neu konfigurieren).",
                 "data": {
-                    "base_url": "API-Basis-URL",
                     "prompt": "System-Prompt",
                     "llm_hass_api": "Home-Assistant-API",
                     "chat_model": "Modell",
                     "max_tokens": "Max. Tokens",
+                    "max_tool_iterations": "Max. Tool-Iterationen",
                     "top_p": "Top P",
                     "temperature": "Temperatur",
                     "thinking_enabled": "Reasoning aktivieren",
                     "strip_markdown": "Markdown für Sprachassistenten entfernen",
+                    "vision_enabled": "Vision erlauben",
+                    "context_management_enabled": "Kontext-Management",
+                    "max_tool_result_chars": "Max. Tool-Ergebnis (Zeichen)",
+                    "max_history_rounds": "Max. Gesprächsrunden",
                     "reasoning_effort": "Reasoning-Aufwand"
                 },
                 "data_description": {
-                    "llm_hass_api": "Keine Auswahl = keine Gerätesteuerung"
+                    "llm_hass_api": "Keine Auswahl = keine Gerätesteuerung",
+                    "thinking_enabled": "Wenn aktiv, nutzt die API Reasoning-Aufwand; Temperatur und Top-P werden ignoriert.",
+                    "reasoning_effort": "Nur wirksam, wenn Reasoning aktiv ist.",
+                    "temperature": "Nur wirksam, wenn Reasoning aus ist.",
+                    "top_p": "Nur wirksam, wenn Reasoning aus ist.",
+                    "chat_model": "Legacy-IDs deepseek-chat und deepseek-reasoner funktionieren bis 2026-07-24.",
+                    "max_tool_iterations": "Maximale API-Runden, wenn das Modell Home-Assistant-Tools aufruft (1–20). Pro Runde können ein oder mehrere Tools laufen.",
+                    "vision_enabled": "Wenn aktiv, kann Assist Bild-Anhänge senden und generate_content Dateipfade nutzen. Funktioniert nur mit einer eigenen OpenAI-kompatiblen Basis-URL mit Multimodal-Chat; die offizielle api.deepseek.com ist nur Text. Meldet SUPPORT_ATTACHMENTS an Home Assistant, sofern verfügbar.",
+                    "context_management_enabled": "Wenn aktiv, werden große Home-Assistant-Tool-Ergebnisse (z. B. GetLiveContext) vor dem API-Aufruf gekürzt, um Kontextlimit-Fehler zu vermeiden.",
+                    "max_tool_result_chars": "Maximale Zeichen pro Tool-Ergebnis-JSON (Standard 12000). 0 = keine Kürzung. Nur wirksam, wenn Kontext-Management aktiv ist.",
+                    "max_history_rounds": "Maximale Anzahl User-Nachrichten in der Assist-Historie (Standard 0 = unbegrenzt). Älteste vollständige Runden werden vor jedem API-Aufruf entfernt; System-Prompt und die aktuelle Runde inkl. Tool-Ketten bleiben erhalten."
                 }
             }
         }
@@ -53,9 +148,56 @@
                 "deepseek-chat": "Legacy: deepseek-chat (bis 2026-07-24)",
                 "deepseek-reasoner": "Legacy: deepseek-reasoner (bis 2026-07-24)"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "Niedrig",
+                "medium": "Mittel",
+                "high": "Hoch",
+                "max": "Max",
+                "xhigh": "Sehr hoch"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "Inhalt generieren",
+            "description": "Sendet einen Prompt an DeepSeek und gibt die Antwort zurück. Optionale Overrides pro Aufruf für Modell, Temperatur, Reasoning, max_tokens und JSON-Antwortformat. Bei aktivem Reasoning enthält die Antwort zusätzlich ein `reasoning`-Feld mit dem Denktext des Modells.",
+            "fields": {
+                "config_entry": {
+                    "name": "Integrations-Eintrag",
+                    "description": "Welcher DeepSeek-Conversation-Eintrag verwendet werden soll."
+                },
+                "prompt": {
+                    "name": "Prompt",
+                    "description": "Nutzer-Nachricht an das Modell."
+                },
+                "chat_model": {
+                    "name": "Modell",
+                    "description": "Modell nur für diesen Aufruf überschreiben. Ohne Angabe gilt die Integrations-Option."
+                },
+                "temperature": {
+                    "name": "Temperatur",
+                    "description": "Temperatur (0–2) nur für diesen Aufruf überschreiben. Wird ignoriert, wenn Reasoning für diesen Aufruf aktiv ist."
+                },
+                "thinking_enabled": {
+                    "name": "Reasoning aktivieren",
+                    "description": "Reasoning nur für diesen Aufruf überschreiben. Wenn aktiv, werden Temperatur und top_p der Integration nicht gesendet."
+                },
+                "max_tokens": {
+                    "name": "Max. Tokens",
+                    "description": "Token-Limit der Antwort nur für diesen Aufruf überschreiben."
+                },
+                "response_format": {
+                    "name": "Antwortformat",
+                    "description": "Auf json_object setzen, um eine JSON-Antwort vom Modell anzufordern."
+                },
+                "filenames": {
+                    "name": "Dateipfade",
+                    "description": "Optionale lokale Bildpfade (müssen in allowlist_external_dirs erlaubt sein)."
+                }
+            }
+        },
         "run_debug": {
             "name": "DeepSeek-Debug ausführen",
             "description": "Umfassende Diagnose: Umgebung, HTTP-Probe, optional models.list, registrierte HA-LLM-APIs, Entity-Registry, viele chat.completions- und Stream-Tests (Thinking an/aus, Systemnachricht, Mehr-Turn, JSON-Modus, parallele Mini-Pings), Log-Auszug und JSON-Anhang im Report. Viele kurze API-Aufrufe; schreibt /config/deepseek_conversation_debug_report.txt und eine Kurznotiz (Zusammenfassung + Fehler).",

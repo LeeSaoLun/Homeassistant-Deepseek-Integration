@@ -1,4 +1,52 @@
 {
+    "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "提示词令牌"
+            },
+            "completion_tokens": {
+                "name": "补全令牌"
+            },
+            "total_tokens": {
+                "name": "总令牌数"
+            },
+            "last_request_tokens": {
+                "name": "上次请求令牌"
+            },
+            "reasoning_tokens": {
+                "name": "推理令牌"
+            },
+            "api_requests": {
+                "name": "API 请求次数"
+            },
+            "last_request_prompt_tokens": {
+                "name": "上次请求提示词令牌"
+            },
+            "last_request_completion_tokens": {
+                "name": "上次请求补全令牌"
+            }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "重置用量"
+            }
+        }
+    },
+    "common": {
+        "debug_notification_title": "DeepSeek 诊断已完成",
+        "debug_notification_report": "报告：{path}",
+        "debug_notification_summary": "摘要：{summary}",
+        "debug_notification_errors_heading": "错误（如有）：",
+        "debug_notification_no_errors": "（无）",
+        "debug_notification_error_line": "- {name}：{error}",
+        "debug_notification_details": "详情：打开报告文件（文本 + JSON 附录）。"
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "未找到配置条目「{config_entry}」，或该条目不属于 DeepSeek Conversation。"
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -9,6 +57,27 @@
                     "chat_model": "模型"
                 },
                 "description": "连接 DeepSeek API。默认模型为 DeepSeek V4 Flash。旧名称 deepseek-chat 与 deepseek-reasoner 仍可用，但将于 2026-07-24 停用——请适时在选项中改用 V4。"
+            },
+            "reauth_confirm": {
+                "title": "重新验证 DeepSeek",
+                "description": "您的 DeepSeek API 密钥被拒绝。请输入有效的 API 密钥以恢复集成。",
+                "data": {
+                    "api_key": "API 密钥"
+                },
+                "data_description": {
+                    "api_key": "来自 platform.deepseek.com 的 API 密钥"
+                }
+            },
+            "reconfigure": {
+                "title": "重新配置 DeepSeek",
+                "description": "更新 API 密钥或基础地址。Assist 与模型选项保持不变。",
+                "data": {
+                    "api_key": "API 密钥",
+                    "base_url": "API 基础地址"
+                },
+                "data_description": {
+                    "api_key": "来自 platform.deepseek.com 的 API 密钥"
+                }
             }
         },
         "error": {
@@ -19,28 +88,54 @@
             "url_required": "必须填写基础地址"
         },
         "abort": {
-            "already_configured": "已配置过"
+            "already_configured": "已配置过",
+            "reauth_successful": "重新验证成功。",
+            "reconfigure_successful": "重新配置成功。"
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "配置条目已不可用。"
+        },
+        "error": {
+            "cannot_connect": "无法连接",
+            "invalid_auth": "身份验证无效",
+            "api_error": "API 错误",
+            "unknown": "未知错误",
+            "url_required": "必须填写基础地址"
+        },
         "step": {
             "init": {
                 "title": "DeepSeek 选项",
-                "description": "DeepSeek V4 用同一模型兼顾对话与推理：开启「启用推理」后，API 会进入思考阶段（extra_body）。推理强度仅在启用推理时生效；启用推理时不发送 temperature 与 top_p。旧模型 ID 可使用至 2026-07-24。",
+                "description": "Assist、模型与 API 行为。要更改 API 密钥或基础地址，请使用集成卡片菜单（⋮ → 重新配置）。",
                 "data": {
-                    "base_url": "API 基础地址",
                     "prompt": "系统提示词",
                     "llm_hass_api": "Home Assistant API",
                     "chat_model": "模型",
                     "max_tokens": "最大令牌数",
+                    "max_tool_iterations": "最大工具迭代次数",
                     "top_p": "Top P",
                     "temperature": "温度",
                     "thinking_enabled": "启用推理",
                     "strip_markdown": "移除语音助手的 Markdown",
+                    "vision_enabled": "允许视觉",
+                    "context_management_enabled": "上下文管理",
+                    "max_tool_result_chars": "工具结果最大字符数",
+                    "max_history_rounds": "最大对话轮数",
                     "reasoning_effort": "推理强度"
                 },
                 "data_description": {
-                    "llm_hass_api": "不选择 = 无设备控制"
+                    "llm_hass_api": "不选择 = 无设备控制",
+                    "thinking_enabled": "启用时 API 使用推理强度；temperature 与 top_p 会被忽略。",
+                    "reasoning_effort": "仅在启用推理时生效。",
+                    "temperature": "仅在关闭推理时生效。",
+                    "top_p": "仅在关闭推理时生效。",
+                    "chat_model": "旧 ID deepseek-chat 与 deepseek-reasoner 可使用至 2026-07-24。",
+                    "max_tool_iterations": "模型调用 Home Assistant 工具时的最大 API 轮数（1–20）。每轮可执行一个或多个工具。",
+                    "vision_enabled": "启用后 Assist 可发送图片附件，generate_content 可使用 filenames。仅适用于支持多模态聊天的自定义 OpenAI 兼容 base URL；官方 api.deepseek.com 仅支持文本。在 Home Assistant 支持时声明 SUPPORT_ATTACHMENTS。",
+                    "context_management_enabled": "启用后，过大的 Home Assistant 工具结果（如 GetLiveContext）会在发往 API 前截断，以减少上下文超限错误。",
+                    "max_tool_result_chars": "每个工具结果 JSON 的最大字符数（默认 12000）。设为 0 表示不截断。仅在启用上下文管理时生效。",
+                    "max_history_rounds": "Assist 历史中保留的最大用户轮数（默认 0 = 不限制）。每次 API 调用前丢弃最旧的完整轮次；系统提示词与当前轮（含工具链）始终保留。"
                 }
             }
         }
@@ -53,9 +148,56 @@
                 "deepseek-chat": "旧版：deepseek-chat（至 2026-07-24）",
                 "deepseek-reasoner": "旧版：deepseek-reasoner（至 2026-07-24）"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "max": "最大",
+                "xhigh": "极高"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "生成内容",
+            "description": "向 DeepSeek 发送提示并返回模型回复。可按单次调用覆盖模型、温度、推理、max_tokens 与 JSON 响应格式。启用推理时，响应除 `text` 与 `usage` 外还包含 `reasoning` 字段（模型的思考文本）。",
+            "fields": {
+                "config_entry": {
+                    "name": "集成条目",
+                    "description": "要使用的 DeepSeek Conversation 配置条目。"
+                },
+                "prompt": {
+                    "name": "提示词",
+                    "description": "发送给模型的用户消息。"
+                },
+                "chat_model": {
+                    "name": "模型",
+                    "description": "仅本次调用覆盖模型；省略时使用集成选项。"
+                },
+                "temperature": {
+                    "name": "温度",
+                    "description": "仅本次调用覆盖温度（0–2）。若本次启用推理则忽略。"
+                },
+                "thinking_enabled": {
+                    "name": "启用推理",
+                    "description": "仅本次调用覆盖推理开关。启用时不发送集成的 temperature 与 top_p。"
+                },
+                "max_tokens": {
+                    "name": "最大令牌数",
+                    "description": "仅本次调用覆盖回复令牌上限。"
+                },
+                "response_format": {
+                    "name": "响应格式",
+                    "description": "设为 json_object 以请求模型返回 JSON 对象。"
+                },
+                "filenames": {
+                    "name": "文件路径",
+                    "description": "可选的本地图片路径（须在 allowlist_external_dirs 中允许）。"
+                }
+            }
+        },
         "run_debug": {
             "name": "运行 DeepSeek 诊断",
             "description": "全面诊断：环境、HTTP 探测、可选 models.list、已注册的 HA LLM API、实体注册表、大量非流式与流式补全测试（思考开关、系统消息、多轮、JSON 模式、并行小请求）、日志摘录与报告末尾 JSON 附录。多次短 API 调用；写入 /config/deepseek_conversation_debug_report.txt 并发送简短通知（摘要 + 失败项）。",

@@ -1,4 +1,52 @@
 {
+    "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "Prompt tokens"
+            },
+            "completion_tokens": {
+                "name": "Completion tokens"
+            },
+            "total_tokens": {
+                "name": "Total tokens"
+            },
+            "last_request_tokens": {
+                "name": "Last request tokens"
+            },
+            "reasoning_tokens": {
+                "name": "Reasoning tokens"
+            },
+            "api_requests": {
+                "name": "API requests"
+            },
+            "last_request_prompt_tokens": {
+                "name": "Last request prompt tokens"
+            },
+            "last_request_completion_tokens": {
+                "name": "Last request completion tokens"
+            }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "Reset usage"
+            }
+        }
+    },
+    "common": {
+        "debug_notification_title": "DeepSeek debug complete",
+        "debug_notification_report": "Report: {path}",
+        "debug_notification_summary": "Summary: {summary}",
+        "debug_notification_errors_heading": "Errors (if any):",
+        "debug_notification_no_errors": "(none)",
+        "debug_notification_error_line": "- {name}: {error}",
+        "debug_notification_details": "Details: open the report file (text + JSON appendix)."
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "Config entry \"{config_entry}\" was not found or is not a DeepSeek Conversation entry."
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -9,6 +57,27 @@
                     "chat_model": "Model"
                 },
                 "description": "Connect to the DeepSeek API. Default model is DeepSeek V4 Flash. Legacy names deepseek-chat and deepseek-reasoner still work but are removed after 2026-07-24 — switch to V4 in options when ready."
+            },
+            "reauth_confirm": {
+                "title": "Reauthenticate DeepSeek",
+                "description": "Your DeepSeek API key was rejected. Enter a valid API key to restore the integration.",
+                "data": {
+                    "api_key": "API Key"
+                },
+                "data_description": {
+                    "api_key": "API key from platform.deepseek.com"
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigure DeepSeek",
+                "description": "Update your API key or base URL. Assist and model settings stay unchanged.",
+                "data": {
+                    "api_key": "API Key",
+                    "base_url": "API Base URL"
+                },
+                "data_description": {
+                    "api_key": "API key from platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -19,28 +88,54 @@
             "url_required": "Base URL is required"
         },
         "abort": {
-            "already_configured": "Already configured"
+            "already_configured": "Already configured",
+            "reauth_successful": "Reauthentication was successful.",
+            "reconfigure_successful": "Reconfiguration was successful."
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "The config entry is no longer available."
+        },
+        "error": {
+            "cannot_connect": "Cannot connect",
+            "invalid_auth": "Invalid auth",
+            "api_error": "API error",
+            "unknown": "Unknown error",
+            "url_required": "Base URL is required"
+        },
         "step": {
             "init": {
                 "title": "DeepSeek Options",
-                "description": "DeepSeek V4 uses one model for chat and reasoning: turn on “Enable reasoning” to send thinking in the API (extra_body). Reasoning effort only applies when reasoning is on. Temperature and top_p are omitted while reasoning is on. Legacy model IDs work until 2026-07-24.",
+                "description": "Assist, model, and API behaviour. To change your API key or base URL, use the integration card menu (⋮ → Reconfigure).",
                 "data": {
-                    "base_url": "API Base URL",
                     "prompt": "System Prompt",
                     "llm_hass_api": "Home Assistant API",
                     "chat_model": "Model",
                     "max_tokens": "Max Tokens",
+                    "max_tool_iterations": "Max tool iterations",
                     "top_p": "Top P",
                     "temperature": "Temperature",
                     "thinking_enabled": "Enable reasoning",
                     "strip_markdown": "Strip markdown for voice assistants",
+                    "vision_enabled": "Allow vision",
+                    "context_management_enabled": "Context management",
+                    "max_tool_result_chars": "Max tool result size (chars)",
+                    "max_history_rounds": "Max conversation rounds",
                     "reasoning_effort": "Reasoning effort"
                 },
                 "data_description": {
-                    "llm_hass_api": "No selection = no device control"
+                    "llm_hass_api": "No selection = no device control",
+                    "thinking_enabled": "When on, the API uses reasoning effort; temperature and top_p are ignored.",
+                    "reasoning_effort": "Only used when reasoning is enabled.",
+                    "temperature": "Only used when reasoning is disabled.",
+                    "top_p": "Only used when reasoning is disabled.",
+                    "chat_model": "Legacy IDs deepseek-chat and deepseek-reasoner work until 2026-07-24.",
+                    "max_tool_iterations": "Maximum API rounds when the model calls Home Assistant tools (1–20). Each round can run one or more tools.",
+                    "vision_enabled": "When on, Assist can send image attachments and generate_content can use filenames. Only works with a custom OpenAI-compatible base URL that supports multimodal chat; the official api.deepseek.com endpoint is text-only. Advertises SUPPORT_ATTACHMENTS to Home Assistant when available.",
+                    "context_management_enabled": "When on, large Home Assistant tool results (e.g. GetLiveContext) are shortened before sending to the API to reduce context-limit errors.",
+                    "max_tool_result_chars": "Maximum characters per tool result JSON (default 12000). Set to 0 to disable truncation. Only applies when context management is enabled.",
+                    "max_history_rounds": "Maximum user turns kept in Assist history (default 0 = unlimited). Older complete rounds are dropped before each API call; the system prompt and the current round including tool chains stay intact."
                 }
             }
         }
@@ -53,9 +148,56 @@
                 "deepseek-chat": "Legacy: deepseek-chat (until 2026-07-24)",
                 "deepseek-reasoner": "Legacy: deepseek-reasoner (until 2026-07-24)"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "Low",
+                "medium": "Medium",
+                "high": "High",
+                "max": "Max",
+                "xhigh": "xHigh"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "Generate content",
+            "description": "Send a prompt to DeepSeek and return the model reply. Optional per-call overrides for model, temperature, thinking, max_tokens, and JSON response format. When reasoning is enabled, the response also includes a `reasoning` field with the model's thinking text.",
+            "fields": {
+                "config_entry": {
+                    "name": "Integration entry",
+                    "description": "DeepSeek Conversation config entry to use."
+                },
+                "prompt": {
+                    "name": "Prompt",
+                    "description": "User message sent to the model."
+                },
+                "chat_model": {
+                    "name": "Model",
+                    "description": "Override the model for this call only. Uses the integration option when omitted."
+                },
+                "temperature": {
+                    "name": "Temperature",
+                    "description": "Override sampling temperature (0–2). Ignored when thinking is enabled for this call. Uses the integration option when omitted."
+                },
+                "thinking_enabled": {
+                    "name": "Enable reasoning",
+                    "description": "Override reasoning for this call only. When enabled, temperature and top_p from the integration are not sent."
+                },
+                "max_tokens": {
+                    "name": "Max tokens",
+                    "description": "Override the reply token limit for this call only."
+                },
+                "response_format": {
+                    "name": "Response format",
+                    "description": "Set to json_object to request a JSON object reply from the model."
+                },
+                "filenames": {
+                    "name": "File paths",
+                    "description": "Optional local image paths (must be allowed in allowlist_external_dirs)."
+                }
+            }
+        },
         "run_debug": {
             "name": "Run DeepSeek debug suite",
             "description": "Exhaustive diagnostics: environment, HTTP probe, optional models.list, registered HA LLM APIs, entity registry, many non-stream and stream completion checks (thinking on/off, system message, multi-turn, JSON mode, parallel pings), log excerpt, and a JSON appendix in the report file. Many short API calls; writes /config/deepseek_conversation_debug_report.txt and a brief notification (summary + failures).",

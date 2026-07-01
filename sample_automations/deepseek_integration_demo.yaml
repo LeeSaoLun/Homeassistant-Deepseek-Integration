@@ -1,0 +1,116 @@
+# Universal DeepSeek integration demo — copy, paste, run (no IDs to replace).
+# Requires: one loaded deepseek_conversation config entry.
+# Trigger: Developer tools → Events → deepseek_integration_demo
+
+alias: DeepSeek Integration Demo
+description: >
+  Demonstrates generate_content (overrides, usage, reasoning, JSON) and conversation.process.
+  Resolves config entry and agent automatically. Uses sun.sun and now() only.
+mode: single
+
+triggers:
+  - trigger: event
+    event_type: deepseek_integration_demo
+
+conditions:
+  - condition: template
+    value_template: >-
+      {% set ns = namespace(ok=false) %}
+      {% for e in integration_entities('deepseek_conversation') %}
+        {% if e.startswith('conversation.') %}{% set ns.ok = true %}{% endif %}
+      {% endfor %}
+      {{ ns.ok }}
+
+actions:
+  - variables:
+      deepseek_agent_id: >-
+        {% for e in integration_entities('deepseek_conversation') %}
+        {%- if e.startswith('conversation.') %}{{ e }}{% break %}{% endif %}
+        {% endfor %}
+      deepseek_config_entry: >-
+        {% for e in integration_entities('deepseek_conversation') %}
+        {%- if e.startswith('conversation.') %}{{ config_entry_id(e) }}{% break %}{% endif %}
+        {% endfor %}
+      demo_context: >-
+        Home Assistant local time: {{ now().strftime('%Y-%m-%d %H:%M') }}.
+        Sun entity state: {{ states('sun.sun') }}.
+        Reply in the same language as this sentence.
+
+  - action: deepseek_conversation.generate_content
+    data:
+      config_entry: "{{ deepseek_config_entry }}"
+      prompt: >-
+        {{ demo_context }}
+        Confirm in one short sentence that this generate_content demo works.
+      chat_model: deepseek-v4-flash
+      temperature: 0.7
+      thinking_enabled: false
+      max_tokens: 150
+    response_variable: deepseek_text
+
+  - action: deepseek_conversation.generate_content
+    data:
+      config_entry: "{{ deepseek_config_entry }}"
+      prompt: >-
+        What is 7 + 5? Think step by step, then put only the final number on the last line.
+      thinking_enabled: true
+      max_tokens: 300
+    response_variable: deepseek_reasoning
+
+  - action: deepseek_conversation.generate_content
+    data:
+      config_entry: "{{ deepseek_config_entry }}"
+      prompt: >-
+        Return a JSON object with keys "integration" (string "deepseek_conversation"),
+        "demo" (boolean true), and "sun" (current sun.sun state as string).
+        Sun is now {{ states('sun.sun') }}.
+      response_format: json_object
+      thinking_enabled: false
+      temperature: 0.2
+      max_tokens: 200
+    response_variable: deepseek_json
+
+  - action: conversation.process
+    data:
+      agent_id: "{{ deepseek_agent_id }}"
+      text: >-
+        What is the current sun state in Home Assistant? Answer in one sentence,
+        in the same language as this request.
+    response_variable: deepseek_assist
+
+  - action: persistent_notification.create
+    data:
+      title: DeepSeek Integration Demo
+      message: >-
+        entry: {{ deepseek_config_entry }}
+        agent: {{ deepseek_agent_id }}
+
+        --- generate_content (text) ---
+        {{ deepseek_text.text }}
+
+        usage: {{ deepseek_text.usage }}
+
+        --- generate_content (reasoning) ---
+        text: {{ deepseek_reasoning.text }}
+        {% if deepseek_reasoning.reasoning is defined %}
+        reasoning: {{ deepseek_reasoning.reasoning[:500] }}{% if deepseek_reasoning.reasoning | length > 500 %}…{% endif %}
+        {% endif %}
+        usage: {{ deepseek_reasoning.usage }}
+
+        --- generate_content (JSON) ---
+        {{ deepseek_json.text }}
+
+        --- conversation.process ---
+        {% if deepseek_assist.response.speech is defined %}
+        {{ deepseek_assist.response.speech.plain.speech }}
+        {% else %}
+        {{ deepseek_assist }}
+        {% endif %}
+
+        Check DeepSeek token sensors on the integration device.
+      notification_id: deepseek_integration_demo
+
+  - action: logbook.log
+    data:
+      name: DeepSeek Demo
+      message: Demo finished. See persistent notification "DeepSeek Integration Demo".
