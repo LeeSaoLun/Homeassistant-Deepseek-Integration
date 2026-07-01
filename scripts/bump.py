@@ -208,6 +208,14 @@ def cmd_prepare(version: str) -> int:
     return 0
 
 
+def _unpushed_on_branch() -> str:
+    """Return non-empty git log if local branch is ahead of origin/PUSH_BRANCH."""
+    try:
+        return _run_git("log", f"origin/{PUSH_BRANCH}..HEAD", "--oneline")
+    except subprocess.CalledProcessError:
+        return ""
+
+
 def cmd_finalize(version: str) -> int:
     """Commit manifest + CHANGELOG and push to origin/dev."""
     _ensure_git_repo()
@@ -245,9 +253,25 @@ def cmd_finalize(version: str) -> int:
         return 1
 
     if not dirty:
+        unpushed = _unpushed_on_branch()
+        if unpushed:
+            print(
+                "[Debug bump]: working tree clean; pushing existing commits to "
+                f"origin/{PUSH_BRANCH}"
+            )
+            print(unpushed)
+            print()
+            try:
+                _run_git_ok("push", "origin", PUSH_BRANCH)
+            except subprocess.CalledProcessError:
+                print("Git push fehlgeschlagen.", file=sys.stderr)
+                return 1
+            print(f"[Debug bump]: pushed to origin/{PUSH_BRANCH}")
+            return 0
+
         print(
             "Abbruch: manifest.json und CHANGELOG.md sind unverändert "
-            "(nichts zu committen).",
+            "(nichts zu committen oder zu pushen).",
             file=sys.stderr,
         )
         return 1
