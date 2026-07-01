@@ -2,6 +2,9 @@ name: Release
 
 # Laeuft nur auf main (nach dev -> main Merge). bump.bat pusht Entwurf nach dev;
 # der Tag wird hier erstellt, wenn manifest.json in diesem Push geaendert wurde.
+#
+# HACS zip_release: deepseek_conversation.zip muss zu hacs.json "filename" passen.
+# HACS laedt dieses Asset bei Install/Update; GitHub download_count -> HACS-Anzeige.
 
 on:
   push:
@@ -138,6 +141,19 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build HACS release zip
+        if: steps.changed.outputs.changed == 'true' && steps.tagcheck.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f deepseek_conversation.zip
+          cd custom_components
+          zip -r ../deepseek_conversation.zip deepseek_conversation \
+            -x "*.pyc" -x "*__pycache__/*"
+          cd ..
+          echo "[Debug release]: deepseek_conversation.zip ($(wc -c < deepseek_conversation.zip) bytes)"
+          unzip -l deepseek_conversation.zip | head -15
+
       - name: Create Git tag
         if: steps.changed.outputs.changed == 'true' && steps.tagcheck.outputs.exists != 'true'
         run: |
@@ -151,3 +167,4 @@ jobs:
           tag_name: ${{ steps.manifest.outputs.tag }}
           name: ${{ steps.manifest.outputs.tag }}
           body: ${{ steps.notes.outputs.body }}
+          files: deepseek_conversation.zip
