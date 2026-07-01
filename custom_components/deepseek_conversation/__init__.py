@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import base64
 from contextlib import suppress
-from mimetypes import guess_file_type
-from pathlib import Path
 
 import openai
 import voluptuous as vol
@@ -55,6 +52,7 @@ from .const import (
 from .debug import async_run_debug_suite
 from .types import DeepSeekConfigEntry, DeepSeekRuntimeData
 from .usage_metrics import UsageTracker, completion_usage_from_api
+from .vision import async_image_parts_from_filenames
 
 SERVICE_GENERATE_CONTENT = "generate_content"
 SERVICE_RUN_DEBUG = "run_debug"
@@ -89,15 +87,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def encode_file(file_path: str) -> tuple[str, str]:
-    """Return base64 version of file contents."""
-    mime_type, _ = guess_file_type(file_path)
-    if mime_type is None:
-        mime_type = "application/octet-stream"
-    with open(file_path, "rb") as image_file:
-        return (mime_type, base64.b64encode(image_file.read()).decode("utf-8"))
-
-
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up DeepSeek Conversation."""
 
@@ -124,44 +113,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             {"type": "text", "text": call.data[CONF_PROMPT]}
         ]
 
-        async def append_files_to_content() -> None:
-            for filename in call.data.get(CONF_FILENAMES, []):
-                if not hass.config.is_allowed_path(filename):
-                    LOGGER.warning(
-                        "Cannot read %s, no access to path; "
-                        "`allowlist_external_dirs` may need to be adjusted in "
-                        "`configuration.yaml`",
-                        filename,
-                    )
-                    continue
-                if not Path(filename).exists():
-                    LOGGER.warning("%s does not exist", filename)
-                    continue
-
-                try:
-                    mime_type, base64_file = await hass.async_add_executor_job(
-                        encode_file, filename
-                    )
-                    if "image/" in mime_type:
-                        user_content.append(
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{base64_file}",
-                                },
-                            }
-                        )
-                    else:
-                        LOGGER.warning(
-                            "Skipping file %s: unsupported type %s",
-                            filename,
-                            mime_type,
-                        )
-                except Exception as err:
-                    LOGGER.error("Error processing file %s: %s", filename, err)
-
         if CONF_FILENAMES in call.data:
-            await append_files_to_content()
+            user_content.extend(
+                await async_image_parts_from_filenames(
+                    hass, call.data.get(CONF_FILENAMES, [])
+                )
+            )
 
         messages.append({"role": "user", "content": user_content})
 

@@ -40,6 +40,11 @@ from .const import (
 )
 from .types import DeepSeekConfigEntry
 from .usage_metrics import CompletionUsage, completion_usage_from_api
+from .vision import (
+    async_user_message_content,
+    content_list_has_attachments,
+    model_supports_vision,
+)
 
 
 def _format_tool(
@@ -243,8 +248,13 @@ def _convert_content_to_messages(
     *,
     model: str,
     thinking_enabled: bool,
+    user_contents: dict[int, str | list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Convert conversation history to DeepSeek API message format."""
+    """Convert conversation history to DeepSeek API message format.
+
+    ``user_contents`` maps ``id(content)`` -> pre-built user ``content`` when
+    attachments require async encoding (see ``_async_convert_content_to_messages``).
+    """
     messages: list[dict[str, Any]] = []
 
     for content in content_list:
@@ -259,7 +269,10 @@ def _convert_content_to_messages(
 
         if isinstance(content, conversation.UserContent):
             role = "user"
-            message_content = content.content
+            if user_contents is not None and id(content) in user_contents:
+                message_content = user_contents[id(content)]
+            else:
+                message_content = content.content
         elif isinstance(content, conversation.AssistantContent):
             role = "assistant"
             message_content = content.content
@@ -301,6 +314,31 @@ def _convert_content_to_messages(
             messages.append(msg)
 
     return messages
+
+
+async def _async_convert_content_to_messages(
+    hass: HomeAssistant,
+    content_list: list[conversation.Content],
+    *,
+    model: str,
+    thinking_enabled: bool,
+) -> list[dict[str, Any]]:
+    """Convert chat log content, encoding image attachments for the DeepSeek API."""
+    user_contents: dict[int, str | list[dict[str, Any]]] = {}
+    for content in content_list:
+        if not isinstance(content, conversation.UserContent):
+            continue
+        if not content.attachments:
+            continue
+        user_contents[id(content)] = await async_user_message_content(
+            hass, content.content, content.attachments
+        )
+    return _convert_content_to_messages(
+        content_list,
+        model=model,
+        thinking_enabled=thinking_enabled,
+        user_contents=user_contents or None,
+    )
 
 
 def _final_speech_from_chat_log(
@@ -566,6 +604,10 @@ class DeepSeekConversationEntity(
             )
         else:
             self._attr_supported_features = conversation.ConversationEntityFeature(0)
+        if attachment_feature := getattr(
+            conversation.ConversationEntityFeature, "SUPPORT_ATTACHMENTS", None
+        ):
+            self._attr_supported_features |= attachment_feature
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -677,9 +719,34 @@ class DeepSeekConversationEntity(
 
         thinking_on = options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED)
 
-        initial_messages = _convert_content_to_messages(
-            chat_log.content, model=model, thinking_enabled=thinking_on
-        )
+        if content_list_has_attachments(chat_log.content) and not model_supports_vision(
+            model
+        ):
+            return _intent_error_result(
+                language=user_input.language,
+                conversation_id=chat_log.conversation_id,
+                message=(
+                    f"The selected model ({model}) does not support image "
+                    "attachments. Use deepseek-v4-flash or deepseek-v4-pro."
+                ),
+                code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+            )
+
+        try:
+            initial_messages = await _async_convert_content_to_messages(
+                self.hass,
+                chat_log.content,
+                model=model,
+                thinking_enabled=thinking_on,
+            )
+        except HomeAssistantError as err:
+            LOGGER.error("[Debug vision]: attachment handling failed: %s", err)
+            return _intent_error_result(
+                language=user_input.language,
+                conversation_id=chat_log.conversation_id,
+                message=str(err),
+                code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+            )
         LOGGER.debug(
             "Sending messages to DeepSeek: %s",
             json.dumps(initial_messages, indent=2, cls=_HAJSONEncoder),
@@ -731,8 +798,11 @@ class DeepSeekConversationEntity(
                     "Iteration %d finished. Tool results in, preparing next round.",
                     _iteration + 1,
                 )
-                current_messages = _convert_content_to_messages(
-                    chat_log.content, model=model, thinking_enabled=thinking_on
+                current_messages = await _async_convert_content_to_messages(
+                    self.hass,
+                    chat_log.content,
+                    model=model,
+                    thinking_enabled=thinking_on,
                 )
             else:
                 max_iterations_reached = True
