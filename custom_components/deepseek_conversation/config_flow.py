@@ -307,6 +307,40 @@ class DeepSeekOptionsFlow(OptionsFlow):
                         self.hass.config_entries.async_update_entry(config_entry, data=new_data)
 
             if not errors:
+                new_thinking = bool(
+                    user_input.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED)
+                )
+                saved_thinking = bool(
+                    config_entry.options.get(
+                        CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED
+                    )
+                )
+
+                if not new_thinking:
+                    user_input.pop(CONF_REASONING_EFFORT, None)
+
+                if new_thinking != saved_thinking:
+                    LOGGER.debug(
+                        "[Debug config_flow]: thinking_enabled %s -> %s, "
+                        "refreshing options form",
+                        saved_thinking,
+                        new_thinking,
+                    )
+                    schema = deepseek_config_option_schema(
+                        self.hass,
+                        config_entry.options,
+                        config_entry,
+                        thinking_enabled=new_thinking,
+                    )
+                    suggested = {**dict(config_entry.options), **user_input}
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=self.add_suggested_values_to_schema(
+                            vol.Schema(schema), suggested
+                        ),
+                        errors=errors,
+                    )
+
                 # Merge new user input with existing options before creating entry
                 updated_options = {**config_entry.options, **user_input}
                 result = self.async_create_entry(title="", data=updated_options)
@@ -323,10 +357,26 @@ class DeepSeekOptionsFlow(OptionsFlow):
                 return result
 
         # Pass options from config_entry to the schema function
-        schema = deepseek_config_option_schema(self.hass, config_entry.options, config_entry)
+        thinking_on = bool(
+            config_entry.options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED)
+        )
+        if user_input is not None and CONF_THINKING_ENABLED in user_input:
+            thinking_on = bool(user_input[CONF_THINKING_ENABLED])
+
+        schema = deepseek_config_option_schema(
+            self.hass,
+            config_entry.options,
+            config_entry,
+            thinking_enabled=thinking_on,
+        )
+        suggested = dict(config_entry.options)
+        if user_input is not None:
+            suggested.update(user_input)
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(schema),
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(schema), suggested
+            ),
             errors=errors,
         )
 
@@ -335,8 +385,15 @@ def deepseek_config_option_schema(
     hass: HomeAssistant,
     options: dict[str, Any] | MappingProxyType[str, Any],
     config_entry: ConfigEntry | None = None,
+    *,
+    thinking_enabled: bool = DEFAULT_THINKING_ENABLED,
 ) -> VolDictType:
-    """Return a schema for DeepSeek completion options."""
+    """Return a schema for DeepSeek completion options.
+
+    Reasoning effort is only shown when ``thinking_enabled`` is True.
+    Temperature and top_p are only shown when reasoning is off (not sent by the API
+    while thinking is on). See const.build_chat_completion_args().
+    """
     # Re-add HASS API selection
     hass_apis: list[SelectOptionDict] = [
         SelectOptionDict(label=api.name, value=api.id)
@@ -391,16 +448,6 @@ def deepseek_config_option_schema(
             NumberSelectorConfig(min=1, max=MAX_TOKENS_UPPER_BOUND, mode="box", step=1)
         ),
         vol.Optional(
-            CONF_TOP_P,
-            description={"suggested_value": options.get(CONF_TOP_P)},
-            default=RECOMMENDED_TOP_P,
-        ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05, mode="slider")),
-        vol.Optional(
-            CONF_TEMPERATURE,
-            description={"suggested_value": options.get(CONF_TEMPERATURE)},
-            default=RECOMMENDED_TEMPERATURE,
-        ): NumberSelector(NumberSelectorConfig(min=0, max=2, step=0.05, mode="slider")),
-        vol.Optional(
             CONF_THINKING_ENABLED,
             description={
                 "suggested_value": options.get(
@@ -418,7 +465,10 @@ def deepseek_config_option_schema(
             },
             default=options.get(CONF_STRIP_MARKDOWN, DEFAULT_STRIP_MARKDOWN),
         ): BooleanSelector(),
-        vol.Optional(
+    }
+
+    if thinking_enabled:
+        schema[vol.Optional(
             CONF_REASONING_EFFORT,
             description={
                 "suggested_value": options.get(
@@ -428,11 +478,26 @@ def deepseek_config_option_schema(
             default=options.get(
                 CONF_REASONING_EFFORT, RECOMMENDED_REASONING_EFFORT
             ),
-        ): SelectSelector(
+        )] = SelectSelector(
             SelectSelectorConfig(
                 options=reasoning_effort_options,
                 translation_key=CONF_REASONING_EFFORT,
             )
-        ),
-    }
+        )
+    else:
+        schema[vol.Optional(
+            CONF_TOP_P,
+            description={"suggested_value": options.get(CONF_TOP_P)},
+            default=RECOMMENDED_TOP_P,
+        )] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.05, mode="slider")
+        )
+        schema[vol.Optional(
+            CONF_TEMPERATURE,
+            description={"suggested_value": options.get(CONF_TEMPERATURE)},
+            default=RECOMMENDED_TEMPERATURE,
+        )] = NumberSelector(
+            NumberSelectorConfig(min=0, max=2, step=0.05, mode="slider")
+        )
+
     return schema
