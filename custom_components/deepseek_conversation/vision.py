@@ -108,8 +108,11 @@ def _image_part_from_path(
         raise HomeAssistantError(
             f"Only image attachments are supported, got {resolved_mime} for `{file_path}`"
         )
-    encoded_mime, base64_data, byte_count = encode_file_path(file_path)
-    return image_url_content_part(encoded_mime, base64_data), byte_count
+    # Prefer the HA-provided/resolved mime over encode_file_path's extension guess,
+    # so an attachment with an authoritative mime_type but no/odd file extension is
+    # still sent with the correct image type in the data URL.
+    _guessed_mime, base64_data, byte_count = encode_file_path(file_path)
+    return image_url_content_part(resolved_mime, base64_data), byte_count
 
 
 def _read_image_parts_from_paths(
