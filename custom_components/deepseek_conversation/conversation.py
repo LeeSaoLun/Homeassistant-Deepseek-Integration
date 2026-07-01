@@ -41,6 +41,51 @@ from .types import DeepSeekConfigEntry
 MAX_TOOL_ITERATIONS = 10
 
 
+def _format_tool(
+    tool: llm.Tool, custom_serializer: Callable[[Any], Any] | None
+) -> dict[str, Any] | None:
+    """Format one HA LLM tool for OpenAI-compatible ``tools`` array.
+
+    Returns ``None`` when ``voluptuous_openapi.convert`` fails so callers never
+    send an empty schema (which causes opaque API errors). See ``_format_tools_for_api``.
+    """
+    try:
+        parameters = convert(tool.parameters, custom_serializer=custom_serializer)
+    except Exception as err:
+        LOGGER.warning(
+            "[Debug conversation]: Skipping tool %s - parameter schema conversion "
+            "failed: %s",
+            tool.name,
+            err,
+        )
+        return None
+
+    return {
+        "type": "function",
+        "function": {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": parameters,
+        },
+    }
+
+
+def _format_tools_for_api(
+    tools: list[llm.Tool],
+    custom_serializer: Callable[[Any], Any] | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Convert HA tools for the chat API; return (formatted, skipped names)."""
+    formatted: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for tool in tools:
+        payload = _format_tool(tool, custom_serializer)
+        if payload is None:
+            skipped.append(tool.name)
+        else:
+            formatted.append(payload)
+    return formatted, skipped
+
+
 def _intent_error_result(
     *,
     language: str,
@@ -190,26 +235,6 @@ async def async_setup_entry(
 
     agent = DeepSeekConversationEntity(config_entry)
     async_add_entities([agent])
-
-
-def _format_tool(
-    tool: llm.Tool, custom_serializer: Callable[[Any], Any] | None
-) -> dict[str, Any]:
-    """Format tool specification for OpenAI-compatible tool format."""
-    try:
-        parameters = convert(tool.parameters, custom_serializer=custom_serializer)
-    except Exception as err:
-        LOGGER.error("Error converting tool parameters for %s: %s", tool.name, err)
-        parameters = {"type": "object", "properties": {}}
-
-    return {
-        "type": "function",
-        "function": {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": parameters,
-        },
-    }
 
 
 def _convert_content_to_messages(
@@ -556,11 +581,19 @@ class DeepSeekConversationEntity(
 
         if chat_log.llm_api:
             active_llm_api = chat_log.llm_api
-            try:
-                tools = [
-                    _format_tool(tool, active_llm_api.custom_serializer)
-                    for tool in active_llm_api.tools
-                ]
+            registered = list(active_llm_api.tools)
+            tools, skipped_tools = _format_tools_for_api(
+                registered, active_llm_api.custom_serializer
+            )
+            if skipped_tools:
+                LOGGER.warning(
+                    "[Debug conversation]: %d of %d tool(s) skipped (schema "
+                    "conversion failed): %s",
+                    len(skipped_tools),
+                    len(registered),
+                    ", ".join(skipped_tools),
+                )
+            if tools:
                 tool_choice = "auto"
                 tool_names = [
                     t.get("function", {}).get("name", "unknown") for t in tools
@@ -569,10 +602,21 @@ class DeepSeekConversationEntity(
                     "Sending tools to DeepSeek (from chat_log.llm_api): %s",
                     tool_names,
                 )
-            except Exception as err:
-                LOGGER.error("Error formatting tools: %s", err, exc_info=True)
-                tools = None
-                tool_choice = None
+            elif registered:
+                LOGGER.error(
+                    "[Debug conversation]: All %d tool(s) failed schema conversion; "
+                    "cannot call Home Assistant tools",
+                    len(registered),
+                )
+                return _intent_error_result(
+                    language=user_input.language,
+                    conversation_id=chat_log.conversation_id,
+                    message=(
+                        "Home Assistant tools could not be prepared for the API. "
+                        "Check the log for skipped tool names."
+                    ),
+                    code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+                )
         elif hass_api_key:
             LOGGER.warning(
                 "HASS API '%s' selected in options, but chat_log.llm_api is None "
