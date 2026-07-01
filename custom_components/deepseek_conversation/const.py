@@ -19,6 +19,7 @@ CONF_TOP_P = "top_p"
 CONF_THINKING_ENABLED = "thinking_enabled"
 CONF_REASONING_EFFORT = "reasoning_effort"
 CONF_STRIP_MARKDOWN = "strip_markdown"
+CONF_VISION_ENABLED = "vision_enabled"
 CONF_BASE_URL = "base_url"
 CONF_FILENAMES = "filenames"
 CONF_RESPONSE_FORMAT = "response_format"
@@ -48,6 +49,7 @@ RECOMMENDED_TEMPERATURE = 1.0
 RECOMMENDED_TOP_P = 1.0
 DEFAULT_THINKING_ENABLED = False
 DEFAULT_STRIP_MARKDOWN = False
+DEFAULT_VISION_ENABLED = True
 
 REASONING_EFFORT_SELECT: tuple[tuple[str, str], ...] = (
     ("low", "Low"),

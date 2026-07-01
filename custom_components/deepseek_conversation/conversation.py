@@ -43,7 +43,10 @@ from .usage_metrics import CompletionUsage, completion_usage_from_api
 from .vision import (
     async_user_message_content,
     content_list_has_attachments,
+    conversation_entity_features_for_options,
+    count_attachments_in_content_list,
     model_supports_vision,
+    vision_enabled_in_options,
 )
 
 
@@ -324,6 +327,12 @@ async def _async_convert_content_to_messages(
     thinking_enabled: bool,
 ) -> list[dict[str, Any]]:
     """Convert chat log content, encoding image attachments for the DeepSeek API."""
+    attachment_count = count_attachments_in_content_list(content_list)
+    if attachment_count:
+        LOGGER.debug(
+            "[Debug vision]: preparing %d attachment(s) for API messages",
+            attachment_count,
+        )
     user_contents: dict[int, str | list[dict[str, Any]]] = {}
     for content in content_list:
         if not isinstance(content, conversation.UserContent):
@@ -598,16 +607,10 @@ class DeepSeekConversationEntity(
         Reload is only needed for connection data (base_url, API key); see
         config_flow.py (base_url) and reauth (API key).
         """
-        if entry.options.get(CONF_LLM_HASS_API):
-            self._attr_supported_features = (
-                conversation.ConversationEntityFeature.CONTROL
-            )
-        else:
-            self._attr_supported_features = conversation.ConversationEntityFeature(0)
-        if attachment_feature := getattr(
-            conversation.ConversationEntityFeature, "SUPPORT_ATTACHMENTS", None
-        ):
-            self._attr_supported_features |= attachment_feature
+        self._attr_supported_features = conversation_entity_features_for_options(
+            entry.options,
+            has_control=bool(entry.options.get(CONF_LLM_HASS_API)),
+        )
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -719,18 +722,27 @@ class DeepSeekConversationEntity(
 
         thinking_on = options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED)
 
-        if content_list_has_attachments(chat_log.content) and not model_supports_vision(
-            model
-        ):
-            return _intent_error_result(
-                language=user_input.language,
-                conversation_id=chat_log.conversation_id,
-                message=(
-                    f"The selected model ({model}) does not support image "
-                    "attachments. Use deepseek-v4-flash or deepseek-v4-pro."
-                ),
-                code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
-            )
+        if content_list_has_attachments(chat_log.content):
+            if not vision_enabled_in_options(options):
+                return _intent_error_result(
+                    language=user_input.language,
+                    conversation_id=chat_log.conversation_id,
+                    message=(
+                        "Vision is disabled in DeepSeek options. Enable "
+                        "'Allow vision' to send image attachments."
+                    ),
+                    code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+                )
+            if not model_supports_vision(model):
+                return _intent_error_result(
+                    language=user_input.language,
+                    conversation_id=chat_log.conversation_id,
+                    message=(
+                        f"The selected model ({model}) does not support image "
+                        "attachments. Use deepseek-v4-flash or deepseek-v4-pro."
+                    ),
+                    code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+                )
 
         try:
             initial_messages = await _async_convert_content_to_messages(

@@ -118,6 +118,7 @@
                     "temperature": "Temperature",
                     "thinking_enabled": "Enable reasoning",
                     "strip_markdown": "Strip markdown for voice assistants",
+                    "vision_enabled": "Allow vision",
                     "reasoning_effort": "Reasoning effort"
                 },
                 "data_description": {
@@ -127,7 +128,8 @@
                     "temperature": "Only used when reasoning is disabled.",
                     "top_p": "Only used when reasoning is disabled.",
                     "chat_model": "Legacy IDs deepseek-chat and deepseek-reasoner work until 2026-07-24.",
-                    "max_tool_iterations": "Maximum API rounds when the model calls Home Assistant tools (1–20). Each round can run one or more tools."
+                    "max_tool_iterations": "Maximum API rounds when the model calls Home Assistant tools (1–20). Each round can run one or more tools.",
+                    "vision_enabled": "When on, Assist can send image attachments and generate_content can use filenames. Requires a vision-capable model (V4 Flash/Pro). Advertises SUPPORT_ATTACHMENTS to Home Assistant when available."
                 }
             }
         }

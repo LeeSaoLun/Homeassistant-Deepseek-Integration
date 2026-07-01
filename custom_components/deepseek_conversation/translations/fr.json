@@ -118,7 +118,8 @@
                     "temperature": "Température",
                     "thinking_enabled": "Activer le raisonnement",
                     "strip_markdown": "Supprimer le Markdown pour les assistants vocaux",
-                    "reasoning_effort": "Effort de raisonnement"
+                    "reasoning_effort": "Effort de raisonnement",
+                    "vision_enabled": "Autoriser la vision"
                 },
                 "data_description": {
                     "llm_hass_api": "Aucune sélection = aucun contrôle",
@@ -127,7 +128,8 @@
                     "temperature": "Utilisé uniquement si le raisonnement est désactivé.",
                     "top_p": "Utilisé uniquement si le raisonnement est désactivé.",
                     "chat_model": "Les anciens identifiants deepseek-chat et deepseek-reasoner fonctionnent jusqu’au 2026-07-24.",
-                    "max_tool_iterations": "Nombre maximal de tours API lorsque le modèle appelle des outils Home Assistant (1–20). Chaque tour peut exécuter un ou plusieurs outils."
+                    "max_tool_iterations": "Nombre maximal de tours API lorsque le modèle appelle des outils Home Assistant (1–20). Chaque tour peut exécuter un ou plusieurs outils.",
+                    "vision_enabled": "Si activé, Assist peut envoyer des images en pièce jointe et generate_content peut utiliser des chemins de fichiers. Nécessite un modèle compatible vision (V4 Flash/Pro). Déclare SUPPORT_ATTACHMENTS à Home Assistant lorsque disponible."
                 }
             }
         }

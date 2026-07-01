@@ -14,6 +14,7 @@ All notable changes to this integration.
 - **Configurable max tool iterations** (1–20, default 10) in integration options for the Assist tool loop.
 - **`generate_content` per-call overrides**: optional `chat_model`, `temperature`, `thinking_enabled`, `max_tokens`, and `response_format: json_object`. Unset fields use the config entry options.
 - **Vision in Assist**: image attachments on `UserContent` (Assist chat, AI Task) are sent to DeepSeek V4 as `image_url` parts; shared encoding with `generate_content` via `vision.py`. Legacy `deepseek-reasoner` is rejected when images are attached.
+- **Allow vision option**: toggle in integration options (default on). When off, image attachments and `generate_content` filenames are rejected. When on and Home Assistant supports it, the conversation entity advertises `SUPPORT_ATTACHMENTS` for the Assist attach UI.
 
 ### Improved
 
@@ -23,7 +24,7 @@ All notable changes to this integration.
 - **Options form**: all fields stay visible (reasoning, reasoning effort, temperature, top_p); one OK saves everything — no form reload when toggling reasoning.
 - **Quicker setup and reauth**: credentials are verified via `models.list` instead of a chat completion, so setup does not consume tokens.
 - **`generate_content` with reasoning**: temperature and top_p are no longer sent when reasoning is enabled (consistent with Assist).
-- **Shared vision encoding** for Assist attachments and `generate_content` filenames (`vision.py`).
+- **Shared vision encoding** for Assist attachments and `generate_content` filenames (`vision.py`), with debug logs `[Debug vision]: N attachments, total bytes`.
 - **Simplified the streaming tool loop** to match the stock Ollama/OpenAI conversation integrations: one API round per `async_add_delta_content_stream`, the assistant role carried on each round's first delta, and tool execution triggered by the stream ending. Removed the earlier Assist-UI workarounds — the single continuous stream with explicit tool-boundary deltas, the zero-width-space "priming" between rounds, and the final combined role+content push — which were attempts to work around the frontend bug above. They added complexity and polluted the streamed thinking/answer text without ever fixing the display.
 
 ### Fixed

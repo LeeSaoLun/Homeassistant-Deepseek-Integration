@@ -118,6 +118,7 @@
                     "temperature": "Temperatur",
                     "thinking_enabled": "Reasoning aktivieren",
                     "strip_markdown": "Markdown für Sprachassistenten entfernen",
+                    "vision_enabled": "Vision erlauben",
                     "reasoning_effort": "Reasoning-Aufwand"
                 },
                 "data_description": {
@@ -127,7 +128,8 @@
                     "temperature": "Nur wirksam, wenn Reasoning aus ist.",
                     "top_p": "Nur wirksam, wenn Reasoning aus ist.",
                     "chat_model": "Legacy-IDs deepseek-chat und deepseek-reasoner funktionieren bis 2026-07-24.",
-                    "max_tool_iterations": "Maximale API-Runden, wenn das Modell Home-Assistant-Tools aufruft (1–20). Pro Runde können ein oder mehrere Tools laufen."
+                    "max_tool_iterations": "Maximale API-Runden, wenn das Modell Home-Assistant-Tools aufruft (1–20). Pro Runde können ein oder mehrere Tools laufen.",
+                    "vision_enabled": "Wenn aktiv, kann Assist Bild-Anhänge senden und generate_content Dateipfade nutzen. Erfordert ein Vision-fähiges Modell (V4 Flash/Pro). Meldet SUPPORT_ATTACHMENTS an Home Assistant, sofern verfügbar."
                 }
             }
         }

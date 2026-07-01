@@ -118,6 +118,7 @@
                     "temperature": "温度",
                     "thinking_enabled": "启用推理",
                     "strip_markdown": "移除语音助手的 Markdown",
+                    "vision_enabled": "允许视觉",
                     "reasoning_effort": "推理强度"
                 },
                 "data_description": {
@@ -127,7 +128,8 @@
                     "temperature": "仅在关闭推理时生效。",
                     "top_p": "仅在关闭推理时生效。",
                     "chat_model": "旧 ID deepseek-chat 与 deepseek-reasoner 可使用至 2026-07-24。",
-                    "max_tool_iterations": "模型调用 Home Assistant 工具时的最大 API 轮数（1–20）。每轮可执行一个或多个工具。"
+                    "max_tool_iterations": "模型调用 Home Assistant 工具时的最大 API 轮数（1–20）。每轮可执行一个或多个工具。",
+                    "vision_enabled": "启用后 Assist 可发送图片附件，generate_content 可使用 filenames。需要支持视觉的模型（V4 Flash/Pro）。在 Home Assistant 支持时声明 SUPPORT_ATTACHMENTS。"
                 }
             }
         }

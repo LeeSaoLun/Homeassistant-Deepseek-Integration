@@ -47,6 +47,8 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_THINKING_ENABLED,
     CONF_TOP_P,
+    CONF_VISION_ENABLED,
+    DEFAULT_VISION_ENABLED,
     DEFAULT_STRIP_MARKDOWN,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_THINKING_ENABLED,
@@ -147,6 +149,7 @@ DEFAULT_OPTIONS = {
     CONF_TOP_P: RECOMMENDED_TOP_P,
     CONF_THINKING_ENABLED: DEFAULT_THINKING_ENABLED,
     CONF_STRIP_MARKDOWN: DEFAULT_STRIP_MARKDOWN,
+    CONF_VISION_ENABLED: DEFAULT_VISION_ENABLED,
     CONF_REASONING_EFFORT: RECOMMENDED_REASONING_EFFORT,
 }
 
@@ -531,6 +534,15 @@ def deepseek_config_option_schema(
                 )
             },
             default=options.get(CONF_STRIP_MARKDOWN, DEFAULT_STRIP_MARKDOWN),
+        ): BooleanSelector(),
+        vol.Optional(
+            CONF_VISION_ENABLED,
+            description={
+                "suggested_value": options.get(
+                    CONF_VISION_ENABLED, DEFAULT_VISION_ENABLED
+                )
+            },
+            default=options.get(CONF_VISION_ENABLED, DEFAULT_VISION_ENABLED),
         ): BooleanSelector(),
     }
 

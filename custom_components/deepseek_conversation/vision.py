@@ -2,12 +2,14 @@
 
 Used by conversation.py (UserContent.attachments from Assist / AI Task) and
 __init__.py (generate_content filenames). DeepSeek V4 expects OpenAI-style
-image_url content parts.
+image_url content parts. Option CONF_VISION_ENABLED gates Assist attachments
+and generate_content filenames; see config_flow.py and conversation.py.
 """
 
 from __future__ import annotations
 
 import base64
+from collections.abc import Mapping
 from mimetypes import guess_file_type
 from pathlib import Path
 from typing import Any
@@ -16,17 +18,44 @@ from homeassistant.components import conversation  # pyright: ignore[reportMissi
 from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
 from homeassistant.exceptions import HomeAssistantError  # pyright: ignore[reportMissingImports]
 
-from .const import LOGGER
+from .const import CONF_VISION_ENABLED, DEFAULT_VISION_ENABLED, LOGGER
+
+# Home Assistant 2026.x may add this flag; getattr keeps older cores working.
+CONVERSATION_SUPPORT_ATTACHMENTS = getattr(
+    conversation.ConversationEntityFeature, "SUPPORT_ATTACHMENTS", None
+)
 
 
-def encode_file_path(file_path: str | Path) -> tuple[str, str]:
-    """Return ``(mime_type, base64_data)`` for a local file."""
+def vision_enabled_in_options(options: Mapping[str, Any]) -> bool:
+    """Whether image input is allowed for this config entry."""
+    return bool(options.get(CONF_VISION_ENABLED, DEFAULT_VISION_ENABLED))
+
+
+def conversation_entity_features_for_options(
+    options: Mapping[str, Any],
+    *,
+    has_control: bool,
+) -> conversation.ConversationEntityFeature:
+    """Build ``ConversationEntityFeature`` flags from entry options."""
+    features = conversation.ConversationEntityFeature(0)
+    if has_control:
+        features |= conversation.ConversationEntityFeature.CONTROL
+    if (
+        vision_enabled_in_options(options)
+        and CONVERSATION_SUPPORT_ATTACHMENTS is not None
+    ):
+        features |= CONVERSATION_SUPPORT_ATTACHMENTS
+    return features
+
+
+def encode_file_path(file_path: str | Path) -> tuple[str, str, int]:
+    """Return ``(mime_type, base64_data, raw_byte_count)`` for a local file."""
     path = Path(file_path)
     mime_type, _ = guess_file_type(str(path))
     if mime_type is None:
         mime_type = "application/octet-stream"
-    with path.open("rb") as image_file:
-        return mime_type, base64.b64encode(image_file.read()).decode("utf-8")
+    raw = path.read_bytes()
+    return mime_type, base64.b64encode(raw).decode("utf-8"), len(raw)
 
 
 def image_url_content_part(mime_type: str, base64_data: str) -> dict[str, Any]:
@@ -50,10 +79,18 @@ def content_list_has_attachments(
     content_list: list[conversation.Content],
 ) -> bool:
     """True when any user turn in the chat log carries attachments."""
-    return any(
-        isinstance(content, conversation.UserContent) and content.attachments
-        for content in content_list
-    )
+    return count_attachments_in_content_list(content_list) > 0
+
+
+def count_attachments_in_content_list(
+    content_list: list[conversation.Content],
+) -> int:
+    """Count image attachments across all user turns in a chat log."""
+    total = 0
+    for content in content_list:
+        if isinstance(content, conversation.UserContent) and content.attachments:
+            total += len(content.attachments)
+    return total
 
 
 def _normalize_mime_type(file_path: Path, mime_type: str | None) -> str:
@@ -63,14 +100,48 @@ def _normalize_mime_type(file_path: Path, mime_type: str | None) -> str:
     return guessed or "application/octet-stream"
 
 
-def _image_part_from_path(file_path: Path, mime_type: str | None) -> dict[str, Any]:
+def _image_part_from_path(
+    file_path: Path, mime_type: str | None
+) -> tuple[dict[str, Any], int]:
     resolved_mime = _normalize_mime_type(file_path, mime_type)
     if not resolved_mime.startswith("image/"):
         raise HomeAssistantError(
             f"Only image attachments are supported, got {resolved_mime} for `{file_path}`"
         )
-    encoded_mime, base64_data = encode_file_path(file_path)
-    return image_url_content_part(encoded_mime, base64_data)
+    encoded_mime, base64_data, byte_count = encode_file_path(file_path)
+    return image_url_content_part(encoded_mime, base64_data), byte_count
+
+
+def _read_image_parts_from_paths(
+    files: list[tuple[Path, str | None]],
+    *,
+    strict: bool,
+) -> tuple[list[dict[str, Any]], int]:
+    parts: list[dict[str, Any]] = []
+    total_bytes = 0
+    for file_path, mime_type in files:
+        if not file_path.exists():
+            message = f"`{file_path}` does not exist"
+            if strict:
+                raise HomeAssistantError(message)
+            LOGGER.warning("[Debug vision]: %s", message)
+            continue
+        resolved_mime = _normalize_mime_type(file_path, mime_type)
+        if not resolved_mime.startswith("image/"):
+            message = (
+                f"Skipping `{file_path}`: unsupported type {resolved_mime} "
+                "(only image/* is supported)"
+            )
+            if strict:
+                raise HomeAssistantError(
+                    f"Only image attachments are supported, got {resolved_mime}"
+                )
+            LOGGER.warning("[Debug vision]: %s", message)
+            continue
+        part, byte_count = _image_part_from_path(file_path, mime_type)
+        parts.append(part)
+        total_bytes += byte_count
+    return parts, total_bytes
 
 
 async def async_image_parts_from_paths(
@@ -84,37 +155,14 @@ async def async_image_parts_from_paths(
     ``strict=True`` (Assist): raise on missing or non-image files.
     ``strict=False`` (generate_content service): log and skip disallowed files.
     """
-
-    def _read_all() -> list[dict[str, Any]]:
-        parts: list[dict[str, Any]] = []
-        for file_path, mime_type in files:
-            if not file_path.exists():
-                message = f"`{file_path}` does not exist"
-                if strict:
-                    raise HomeAssistantError(message)
-                LOGGER.warning("[Debug vision]: %s", message)
-                continue
-            resolved_mime = _normalize_mime_type(file_path, mime_type)
-            if not resolved_mime.startswith("image/"):
-                message = (
-                    f"Skipping `{file_path}`: unsupported type {resolved_mime} "
-                    "(only image/* is supported)"
-                )
-                if strict:
-                    raise HomeAssistantError(
-                        f"Only image attachments are supported, got {resolved_mime}"
-                    )
-                LOGGER.warning("[Debug vision]: %s", message)
-                continue
-            parts.append(_image_part_from_path(file_path, mime_type))
-        return parts
-
-    parts = await hass.async_add_executor_job(_read_all)
+    parts, total_bytes = await hass.async_add_executor_job(
+        _read_image_parts_from_paths, files, strict=strict
+    )
     if parts:
         LOGGER.debug(
-            "[Debug vision]: encoded %d image part(s) from %d file(s)",
+            "[Debug vision]: %d attachments, %d total bytes",
             len(parts),
-            len(files),
+            total_bytes,
         )
     return parts
 
@@ -161,9 +209,4 @@ async def async_user_message_content(
     parts.extend(await async_image_parts_from_attachments(hass, attachments))
     if not parts:
         raise HomeAssistantError("Image attachment could not be read")
-    LOGGER.debug(
-        "[Debug vision]: user message with %d part(s) (%d attachment(s))",
-        len(parts),
-        len(attachments),
-    )
     return parts
