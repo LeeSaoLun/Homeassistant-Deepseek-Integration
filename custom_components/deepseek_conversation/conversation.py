@@ -308,27 +308,71 @@ def _final_speech_from_chat_log(
 ) -> str:
     """Pick text for IntentResponse after tool rounds.
 
-    The last ``AssistantContent`` in the log is often the tool-call turn (empty or
-    preamble only). We prefer the latest assistant message with non-empty ``content``.
+    Skip assistant turns that only issued tool_calls (preamble); the final answer
+    is normally the next assistant message after tool results.
     """
     for msg in reversed(content_list):
         if not isinstance(msg, conversation.AssistantContent):
             continue
+        if msg.tool_calls:
+            continue
         raw = msg.content
         if isinstance(raw, str) and raw.strip():
             return raw.strip()
-    # Thinking-only final turn when reasoning is enabled (e.g. v4 + thinking).
     if thinking_enabled:
         for msg in reversed(content_list):
-            if isinstance(msg, conversation.AssistantContent):
-                think = getattr(msg, "thinking_content", None)
-                if isinstance(think, str) and think.strip():
-                    LOGGER.debug(
-                        "Using thinking_content as speech fallback (no assistant text in content)"
-                    )
-                    return think.strip()
-                break
+            if not isinstance(msg, conversation.AssistantContent):
+                continue
+            if msg.tool_calls:
+                continue
+            think = getattr(msg, "thinking_content", None)
+            if isinstance(think, str) and think.strip():
+                LOGGER.debug(
+                    "[Debug conversation]: using thinking_content as speech fallback "
+                    "(no assistant text in content after tools)"
+                )
+                return think.strip()
     return ""
+
+
+def _yield_assistant_text_deltas(
+    *,
+    role_emitted: bool,
+    is_follow_up: bool,
+    content_delta: str | None,
+    reasoning_delta: str | None,
+) -> tuple[list[conversation.AssistantContentDeltaDict], bool]:
+    """Build HA chat_log deltas for streamed assistant text.
+
+    After tool results the Assist UI keeps ``currentDeltaRole`` at ``tool_result``
+    until a new ``role: assistant`` arrives. Follow-up API iterations therefore
+    emit role first, then content/thinking in separate deltas (OpenAI integration
+    pattern). Never send ``content: ""`` — empty strings are falsy in HA and the
+    frontend and drop the payload.
+    """
+    deltas: list[conversation.AssistantContentDeltaDict] = []
+    if not role_emitted and (content_delta or reasoning_delta):
+        if is_follow_up:
+            deltas.append({"role": "assistant"})
+            role_emitted = True
+            if content_delta:
+                deltas.append({"content": content_delta})
+            if reasoning_delta:
+                deltas.append({"thinking_content": reasoning_delta})
+        else:
+            first: conversation.AssistantContentDeltaDict = {"role": "assistant"}
+            if content_delta:
+                first["content"] = content_delta
+            if reasoning_delta:
+                first["thinking_content"] = reasoning_delta
+            deltas.append(first)
+            role_emitted = True
+    else:
+        if content_delta:
+            deltas.append({"content": content_delta})
+        if reasoning_delta:
+            deltas.append({"thinking_content": reasoning_delta})
+    return deltas, role_emitted
 
 
 def _stream_delta_text(delta: Any, field: str) -> str | None:
@@ -372,14 +416,12 @@ async def _transform_stream(
     *,
     thinking_enabled: bool = False,
     role_already_emitted: bool = False,
+    is_follow_up: bool = False,
     usage_events: list[CompletionUsage] | None = None,
 ) -> AsyncGenerator[conversation.AssistantContentDeltaDict, None]:
     """Transform a DeepSeek delta stream (ChatCompletionChunk) into HA format.
 
-    ``role_already_emitted`` is set by the caller for follow-up iterations
-    where the outer unified stream has already yielded ``{"role": "assistant"}``
-    as a sentinel — preventing a redundant role transition that would create
-    an empty AssistantContent in chat_log.
+    ``is_follow_up`` is True for API rounds after tool results (second+ iteration).
     """
     current_tool_calls: list[dict[str, Any]] = []
     current_tool_call_args_buffer: dict[int, str] = {}
@@ -424,24 +466,15 @@ async def _transform_stream(
                     "Stream delta: using content from model_extra (attr empty or unset)"
                 )
 
-            # Emit role together with the first non-empty payload so the HA chat
-            # panel reliably binds the new assistant bubble to the streamed text.
-            # Standalone {"role": "assistant"} deltas (DeepSeek sends an empty
-            # initial chunk) caused iteration 2's content to be lost in the UI
-            # after a tool_call iteration switched currentDeltaRole away from
-            # "assistant".
-            if not role_emitted and (content_delta or reasoning_delta):
-                first_delta: dict[str, Any] = {"role": "assistant", "content": content_delta or ""}
-                if reasoning_delta:
-                    first_delta["thinking_content"] = reasoning_delta
-                LOGGER.debug("Yielding first delta: %s", first_delta)
-                yield first_delta
-                role_emitted = True
-            else:
-                if content_delta:
-                    yield {"content": content_delta}
-                if reasoning_delta:
-                    yield {"thinking_content": reasoning_delta}
+            text_deltas, role_emitted = _yield_assistant_text_deltas(
+                role_emitted=role_emitted,
+                is_follow_up=is_follow_up,
+                content_delta=content_delta,
+                reasoning_delta=reasoning_delta,
+            )
+            for text_delta in text_deltas:
+                LOGGER.debug("[Debug conversation]: yielding stream delta: %s", text_delta)
+                yield text_delta
 
         if delta is not None and delta.tool_calls:
             LOGGER.debug("Received Tool Call Chunk: %s", delta.tool_calls)
@@ -728,6 +761,7 @@ class DeepSeekConversationEntity(
                         chat_log,
                         result,
                         thinking_enabled=bool(thinking_on),
+                        is_follow_up=_iteration > 0,
                         usage_events=iteration_usage,
                     ),
                 ):
