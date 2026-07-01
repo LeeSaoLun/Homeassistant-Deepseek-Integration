@@ -36,6 +36,7 @@ from .const import (
     RECOMMENDED_CHAT_MODEL,
 )
 from .types import DeepSeekConfigEntry
+from .usage_metrics import CompletionUsage, completion_usage_from_api
 
 # Max number of back and forth with the LLM for tool usage
 MAX_TOOL_ITERATIONS = 10
@@ -367,6 +368,7 @@ async def _transform_stream(
     result: AsyncStream[ChatCompletionChunk],
     *,
     role_already_emitted: bool = False,
+    usage_events: list[CompletionUsage] | None = None,
 ) -> AsyncGenerator[conversation.AssistantContentDeltaDict, None]:
     """Transform a DeepSeek delta stream (ChatCompletionChunk) into HA format.
 
@@ -380,6 +382,15 @@ async def _transform_stream(
     role: Literal["assistant"] | None = None
     role_emitted = role_already_emitted  # Track whether {"role": "assistant"} has been emitted for this stream
     async for chunk in result:
+        parsed_usage = completion_usage_from_api(getattr(chunk, "usage", None))
+        if parsed_usage is not None:
+            if usage_events is not None:
+                usage_events.append(parsed_usage)
+            LOGGER.debug(
+                "[Debug usage_metrics]: stream usage chunk prompt=%d completion=%d",
+                parsed_usage.prompt_tokens,
+                parsed_usage.completion_tokens,
+            )
 
         if not chunk.choices:
             continue
@@ -558,7 +569,8 @@ class DeepSeekConversationEntity(
     ) -> conversation.ConversationResult:
         """Handle a message using DeepSeek."""
         options = self.entry.options
-        if not hasattr(self.entry, 'runtime_data') or not isinstance(self.entry.runtime_data, openai.AsyncClient):
+        runtime = self.entry.runtime_data
+        if runtime is None or runtime.client is None:
             LOGGER.error("DeepSeek client not available in runtime_data.")
             return _intent_error_result(
                 language=user_input.language,
@@ -566,7 +578,7 @@ class DeepSeekConversationEntity(
                 message="DeepSeek client not available",
                 code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
             )
-        client: openai.AsyncClient = self.entry.runtime_data
+        client: openai.AsyncClient = runtime.client
         model = options.get(CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL)
 
         try:
@@ -699,10 +711,16 @@ class DeepSeekConversationEntity(
                 )
 
             try:
+                iteration_usage: list[CompletionUsage] = []
                 async for _ in chat_log.async_add_delta_content_stream(
-                    user_input.agent_id, _transform_stream(chat_log, result)
+                    user_input.agent_id,
+                    _transform_stream(
+                        chat_log, result, usage_events=iteration_usage
+                    ),
                 ):
                     pass  # Handled by chat_log internally
+                for usage in iteration_usage:
+                    runtime.usage.record(usage, source="assist")
             except HomeAssistantError as err:
                 LOGGER.error("Error processing DeepSeek stream: %s", err)
                 error_msg = str(err)

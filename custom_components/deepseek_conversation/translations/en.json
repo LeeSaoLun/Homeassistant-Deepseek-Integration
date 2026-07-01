@@ -1,5 +1,21 @@
 {
     "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "Prompt tokens"
+            },
+            "completion_tokens": {
+                "name": "Completion tokens"
+            },
+            "total_tokens": {
+                "name": "Total tokens"
+            },
+            "last_request_tokens": {
+                "name": "Last request tokens"
+            }
+        }
+    },
     "common": {
         "debug_notification_title": "DeepSeek debug complete",
         "debug_notification_report": "Report: {path}",

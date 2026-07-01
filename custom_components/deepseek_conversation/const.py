@@ -131,4 +131,6 @@ def build_chat_completion_args(
         args["tools"] = tools
     if tool_choice:
         args["tool_choice"] = tool_choice
+    if stream:
+        args["stream_options"] = {"include_usage": True}
     return args

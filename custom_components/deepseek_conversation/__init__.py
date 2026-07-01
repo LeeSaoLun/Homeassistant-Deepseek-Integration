@@ -48,12 +48,13 @@ from .const import (
     RECOMMENDED_CHAT_MODEL,
 )
 from .debug import async_run_debug_suite
-from .types import DeepSeekConfigEntry
+from .types import DeepSeekConfigEntry, DeepSeekRuntimeData
+from .usage_metrics import UsageTracker, completion_usage_from_api
 
 SERVICE_GENERATE_CONTENT = "generate_content"
 SERVICE_RUN_DEBUG = "run_debug"
 
-PLATFORMS = (Platform.CONVERSATION,)
+PLATFORMS = (Platform.CONVERSATION, Platform.SENSOR)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -108,7 +109,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
 
         model: str = entry.options.get(CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL)
-        client: openai.AsyncClient = entry.runtime_data
+        runtime: DeepSeekRuntimeData = entry.runtime_data
+        client: openai.AsyncClient = runtime.client
 
         messages: list[dict[str, object]] = []
         system_prompt = (entry.options.get(CONF_PROMPT) or "").strip() or DEFAULT_SYSTEM_PROMPT
@@ -159,6 +161,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         messages.append({"role": "user", "content": user_content})
 
+        usage_payload: dict[str, int] | None = None
+        response_text = ""
         try:
             model_args = build_chat_completion_args(
                 model=model,
@@ -167,7 +171,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 stream=False,
             )
             response = await client.chat.completions.create(**model_args)
-            response_text = response.choices[0].message.content
+            response_text = response.choices[0].message.content or ""
+            if (parsed := completion_usage_from_api(response.usage)) is not None:
+                runtime.usage.record(parsed, source="generate_content")
+                usage_payload = runtime.usage.usage_as_dict(parsed)
 
         except openai.AuthenticationError as err:
             LOGGER.error("DeepSeek API key rejected: %s", err)
@@ -184,7 +191,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             LOGGER.error("Error preparing input for DeepSeek: %s", err)
             raise HomeAssistantError(f"Error preparing input: {err}") from err
 
-        return {"text": response_text or ""}
+        result: dict[str, object] = {"text": response_text}
+        if usage_payload is not None:
+            result["usage"] = usage_payload
+        return result
 
     async def run_debug(call: ServiceCall) -> ServiceResponse:
         """Run DeepSeek diagnostics and write ``/config/deepseek_conversation_debug_report.txt``."""
@@ -319,7 +329,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
         LOGGER.error("DeepSeek SDK error during setup: %s", err)
         raise ConfigEntryNotReady(f"DeepSeek API error: {err}") from err
 
-    entry.runtime_data = client
+    entry.runtime_data = DeepSeekRuntimeData(client=client, usage=UsageTracker())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -334,7 +344,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) ->
     leaking the pool on those reloads.
     """
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    client: openai.AsyncClient | None = getattr(entry, "runtime_data", None)
+    runtime: DeepSeekRuntimeData | None = getattr(entry, "runtime_data", None)
+    client = runtime.client if runtime is not None else None
     if client is not None:
         try:
             await client.close()

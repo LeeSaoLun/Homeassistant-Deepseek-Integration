@@ -191,12 +191,15 @@ async def async_run_debug_suite(
     for k, v in env.items():
         log(f"ENV {k}={v!r}")
 
-    client: openai.AsyncClient | None = entry.runtime_data
+    client: openai.AsyncClient | None = None
+    runtime = entry.runtime_data
+    if runtime is not None:
+        client = runtime.client
     if not isinstance(client, openai.AsyncOpenAI):
-        log("FAIL: runtime_data is not AsyncOpenAI — aborting API tests.")
+        log("FAIL: runtime_data client is not AsyncOpenAI — aborting API tests.")
         out["completions"]["_abort"] = {
             "ok": False,
-            "error": "runtime_data is not AsyncOpenAI",
+            "error": "runtime_data client is not AsyncOpenAI",
         }
         out["summary"] = {
             "error": "no_openai_client",

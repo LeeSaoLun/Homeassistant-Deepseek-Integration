@@ -1,5 +1,21 @@
 {
     "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "Jetons du prompt"
+            },
+            "completion_tokens": {
+                "name": "Jetons de complétion"
+            },
+            "total_tokens": {
+                "name": "Jetons totaux"
+            },
+            "last_request_tokens": {
+                "name": "Dernière requête (jetons)"
+            }
+        }
+    },
     "common": {
         "debug_notification_title": "Diagnostic DeepSeek terminé",
         "debug_notification_report": "Rapport : {path}",

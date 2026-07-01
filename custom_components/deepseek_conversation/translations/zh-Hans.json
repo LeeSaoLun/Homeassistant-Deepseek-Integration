@@ -1,5 +1,21 @@
 {
     "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "提示词令牌"
+            },
+            "completion_tokens": {
+                "name": "补全令牌"
+            },
+            "total_tokens": {
+                "name": "总令牌数"
+            },
+            "last_request_tokens": {
+                "name": "上次请求令牌"
+            }
+        }
+    },
     "common": {
         "debug_notification_title": "DeepSeek 诊断已完成",
         "debug_notification_report": "报告：{path}",
