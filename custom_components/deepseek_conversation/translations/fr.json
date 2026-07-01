@@ -78,10 +78,19 @@
     },
     "options": {
         "abort": {
-            "config_entry_not_available": "L’entrée de configuration n’est plus disponible."
+            "config_entry_not_available": "L’entrée de configuration n’est plus disponible.",
+            "reconfigure_started": "Ouverture des paramètres de clé API et d’URL de base."
         },
         "step": {
             "init": {
+                "title": "Options DeepSeek",
+                "description": "Choisissez ce que vous souhaitez modifier.",
+                "menu_options": {
+                    "assist": "Paramètres Assist et modèle",
+                    "reconfigure": "Clé API et URL de base"
+                }
+            },
+            "assist": {
                 "title": "Options DeepSeek",
                 "description": "DeepSeek V4 utilise un seul modèle pour le chat et le raisonnement : activez « Activer le raisonnement » pour envoyer la phase de réflexion à l’API (extra_body). L’effort de raisonnement ne s’applique que si le raisonnement est activé. La température et le top_p sont omis pendant le raisonnement. Les anciens identifiants de modèle fonctionnent jusqu’au 2026-07-24.",
                 "data": {

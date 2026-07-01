@@ -25,9 +25,9 @@ Community project — not part of Home Assistant Core.
 
 1. **Settings → Devices & services → Add integration → DeepSeek Conversation**
 2. API key (optional: base URL, model)
-3. **Configure** for system prompt, model, reasoning, tools (Home Assistant API), max tokens, etc.
+3. **Configure** (gear) for system prompt, model, reasoning, tools, etc. First screen: **Assist & model settings** or **API key & base URL**.
 
-**Change API key:** integration card **⋮ → Reconfigure** (not the gear icon; that opens options only).
+**Change API key:** integration **⋮ → Reconfigure**, or **Configure → API key & base URL**.
 
 When **reasoning is off**, you set temperature and top_p. When **reasoning is on**, you set reasoning effort instead (DeepSeek API behaviour).
 

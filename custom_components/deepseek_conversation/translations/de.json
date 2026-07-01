@@ -78,10 +78,19 @@
     },
     "options": {
         "abort": {
-            "config_entry_not_available": "Der Konfigurationseintrag ist nicht mehr verfügbar."
+            "config_entry_not_available": "Der Konfigurationseintrag ist nicht mehr verfügbar.",
+            "reconfigure_started": "API-Schlüssel- und Basis-URL-Einstellungen werden geöffnet."
         },
         "step": {
             "init": {
+                "title": "DeepSeek-Optionen",
+                "description": "Wähle, was du ändern möchtest.",
+                "menu_options": {
+                    "assist": "Assist- und Modell-Einstellungen",
+                    "reconfigure": "API-Schlüssel & Basis-URL"
+                }
+            },
+            "assist": {
                 "title": "DeepSeek-Optionen",
                 "description": "DeepSeek V4 nutzt ein Modell für Chat und Reasoning: „Reasoning aktivieren“ schaltet das API-Denken (extra_body) ein. Reasoning-Aufwand gilt nur bei aktiviertem Reasoning. Temperatur und Top-P werden bei aktivem Reasoning nicht gesendet. Legacy-Modell-IDs funktionieren bis 2026-07-24.",
                 "data": {

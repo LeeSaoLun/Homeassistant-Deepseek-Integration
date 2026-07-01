@@ -14,6 +14,7 @@ from homeassistant.config_entries import (  # pyright: ignore[reportMissingImpor
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
+    SOURCE_RECONFIGURE,
 )
 from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API  # pyright: ignore[reportMissingImports]
 from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
@@ -348,7 +349,42 @@ class DeepSeekOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Options entry menu: Assist settings or open reconfigure flow."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["assist", "reconfigure"],
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Close options and open the config-flow reconfigure dialog."""
+        try:
+            config_entry = self.config_entry
+        except AttributeError:
+            LOGGER.error("config_entry not available in OptionsFlow")
+            return self.async_abort(reason="config_entry_not_available")
+
+        LOGGER.debug(
+            "[Debug config_flow]: options menu requested reconfigure for entry %s",
+            config_entry.entry_id,
+        )
+        self.hass.async_create_task(
+            self.hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={
+                    "source": SOURCE_RECONFIGURE,
+                    "entry_id": config_entry.entry_id,
+                },
+            ),
+            eager_start=True,
+        )
+        return self.async_abort(reason="reconfigure_started")
+
+    async def async_step_assist(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage Assist and model options."""
         # self.config_entry should be automatically available as a property
         # Access it safely to avoid AttributeError
         try:
@@ -356,7 +392,7 @@ class DeepSeekOptionsFlow(OptionsFlow):
         except AttributeError:
             LOGGER.error("config_entry not available in OptionsFlow")
             return self.async_abort(reason="config_entry_not_available")
-        
+
         errors: dict[str, str] = {}
 
         if user_input is None:
@@ -423,7 +459,7 @@ class DeepSeekOptionsFlow(OptionsFlow):
                         )
                         suggested = {**dict(config_entry.options), **user_input}
                         return self.async_show_form(
-                            step_id="init",
+                            step_id="assist",
                             data_schema=self.add_suggested_values_to_schema(
                                 vol.Schema(schema), suggested
                             ),
@@ -462,7 +498,7 @@ class DeepSeekOptionsFlow(OptionsFlow):
         if user_input is not None:
             suggested.update(user_input)
         return self.async_show_form(
-            step_id="init",
+            step_id="assist",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(schema), suggested
             ),

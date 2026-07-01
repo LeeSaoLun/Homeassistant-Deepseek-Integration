@@ -78,10 +78,19 @@
     },
     "options": {
         "abort": {
-            "config_entry_not_available": "配置条目已不可用。"
+            "config_entry_not_available": "配置条目已不可用。",
+            "reconfigure_started": "正在打开 API 密钥与基础地址设置。"
         },
         "step": {
             "init": {
+                "title": "DeepSeek 选项",
+                "description": "选择要更改的内容。",
+                "menu_options": {
+                    "assist": "Assist 与模型设置",
+                    "reconfigure": "API 密钥与基础地址"
+                }
+            },
+            "assist": {
                 "title": "DeepSeek 选项",
                 "description": "DeepSeek V4 用同一模型兼顾对话与推理：开启「启用推理」后，API 会进入思考阶段（extra_body）。推理强度仅在启用推理时生效；启用推理时不发送 temperature 与 top_p。旧模型 ID 可使用至 2026-07-24。",
                 "data": {
