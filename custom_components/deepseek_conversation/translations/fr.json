@@ -78,8 +78,14 @@
     },
     "options": {
         "abort": {
-            "config_entry_not_available": "L’entrée de configuration n’est plus disponible.",
-            "reconfigure_started": "Ouverture des paramètres de clé API et d’URL de base."
+            "config_entry_not_available": "L’entrée de configuration n’est plus disponible."
+        },
+        "error": {
+            "cannot_connect": "Connexion impossible",
+            "invalid_auth": "Authentification invalide",
+            "api_error": "Erreur d’API",
+            "unknown": "Erreur inconnue",
+            "url_required": "L’URL de base est obligatoire"
         },
         "step": {
             "init": {
@@ -107,6 +113,17 @@
                 },
                 "data_description": {
                     "llm_hass_api": "Aucune sélection = aucun contrôle"
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigurer DeepSeek",
+                "description": "Mettez à jour la clé API ou l’URL de base. Les options Assist et modèle restent inchangées.",
+                "data": {
+                    "api_key": "Clé API",
+                    "base_url": "URL de base de l’API"
+                },
+                "data_description": {
+                    "api_key": "Clé API depuis platform.deepseek.com"
                 }
             }
         }

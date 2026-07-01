@@ -14,7 +14,6 @@ from homeassistant.config_entries import (  # pyright: ignore[reportMissingImpor
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
-    SOURCE_RECONFIGURE,
 )
 from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API  # pyright: ignore[reportMissingImports]
 from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
@@ -166,6 +165,52 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
         await client.close()
 
 
+async def async_validate_reconfigure_input(
+    hass: HomeAssistant,
+    user_input: dict[str, Any],
+    *,
+    current_base_url: str,
+) -> tuple[dict[str, str], dict[str, Any] | None]:
+    """Validate API key and base URL for reconfigure (config or options flow)."""
+    errors: dict[str, str] = {}
+    base_url = user_input.get(CONF_BASE_URL, current_base_url)
+    if isinstance(base_url, str):
+        base_url = base_url.strip()
+    if not base_url:
+        errors[CONF_BASE_URL] = "url_required"
+        return errors, None
+
+    validate_data = {
+        CONF_API_KEY: user_input[CONF_API_KEY],
+        CONF_BASE_URL: base_url,
+    }
+    try:
+        await validate_input(hass, validate_data)
+    except openai.APIConnectionError:
+        errors["base"] = "cannot_connect"
+    except openai.AuthenticationError:
+        errors["base"] = "invalid_auth"
+    except openai.APIStatusError as err:
+        if err.status_code in (401, 403):
+            errors["base"] = "invalid_auth"
+        else:
+            LOGGER.error("DeepSeek API status error during reconfigure: %s", err)
+            errors["base"] = "api_error"
+    except openai.OpenAIError as e:
+        LOGGER.error("DeepSeek API error during reconfigure: %s", e)
+        errors["base"] = "api_error"
+    except Exception:
+        LOGGER.exception("Unexpected exception during reconfigure")
+        errors["base"] = "unknown"
+    else:
+        return {}, {
+            CONF_API_KEY: user_input[CONF_API_KEY],
+            CONF_BASE_URL: base_url,
+        }
+
+    return errors, None
+
+
 class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for DeepSeek Conversation."""
 
@@ -275,54 +320,27 @@ class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Update API key and base URL from the integration menu (⋮ → Reconfigure)."""
-        errors: dict[str, str] = {}
         reconfigure_entry = self._get_reconfigure_entry()
         current_base_url = reconfigure_entry.data.get(
             CONF_BASE_URL, DEEPSEEK_API_BASE_URL
         )
 
         if user_input is not None:
-            base_url = user_input.get(CONF_BASE_URL, current_base_url)
-            if isinstance(base_url, str):
-                base_url = base_url.strip()
-            if not base_url:
-                errors[CONF_BASE_URL] = "url_required"
-            else:
-                validate_data = {
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                    CONF_BASE_URL: base_url,
-                }
-                try:
-                    await validate_input(self.hass, validate_data)
-                except openai.APIConnectionError:
-                    errors["base"] = "cannot_connect"
-                except openai.AuthenticationError:
-                    errors["base"] = "invalid_auth"
-                except openai.APIStatusError as err:
-                    if err.status_code in (401, 403):
-                        errors["base"] = "invalid_auth"
-                    else:
-                        LOGGER.error(
-                            "DeepSeek API status error during reconfigure: %s", err
-                        )
-                        errors["base"] = "api_error"
-                except openai.OpenAIError as e:
-                    LOGGER.error("DeepSeek API error during reconfigure: %s", e)
-                    errors["base"] = "api_error"
-                except Exception:
-                    LOGGER.exception("Unexpected exception during reconfigure")
-                    errors["base"] = "unknown"
-                else:
-                    LOGGER.debug(
-                        "[Debug config_flow]: reconfigure successful, reloading entry"
-                    )
-                    return self.async_update_reload_and_abort(
-                        reconfigure_entry,
-                        data_updates={
-                            CONF_API_KEY: user_input[CONF_API_KEY],
-                            CONF_BASE_URL: base_url,
-                        },
-                    )
+            errors, data_updates = await async_validate_reconfigure_input(
+                self.hass,
+                user_input,
+                current_base_url=current_base_url,
+            )
+            if data_updates is not None:
+                LOGGER.debug(
+                    "[Debug config_flow]: reconfigure successful, reloading entry"
+                )
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    data_updates=data_updates,
+                )
+        else:
+            errors = {}
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -353,28 +371,42 @@ class DeepSeekOptionsFlow(OptionsFlow):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Close options and open the config-flow reconfigure dialog."""
+        """API key and base URL form inside the options flow (same fields as ⋮ reconfigure)."""
         try:
             config_entry = self.config_entry
         except AttributeError:
             LOGGER.error("config_entry not available in OptionsFlow")
             return self.async_abort(reason="config_entry_not_available")
 
-        LOGGER.debug(
-            "[Debug config_flow]: options menu requested reconfigure for entry %s",
-            config_entry.entry_id,
+        current_base_url = config_entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL)
+
+        if user_input is not None:
+            errors, data_updates = await async_validate_reconfigure_input(
+                self.hass,
+                user_input,
+                current_base_url=current_base_url,
+            )
+            if data_updates is not None:
+                LOGGER.debug(
+                    "[Debug config_flow]: options reconfigure successful, reloading entry"
+                )
+                self.hass.config_entries.async_update_entry(
+                    config_entry,
+                    data={**config_entry.data, **data_updates},
+                )
+                await self.hass.config_entries.async_reload(config_entry.entry_id)
+                return self.async_create_entry(
+                    title="",
+                    data=dict(config_entry.options),
+                )
+        else:
+            errors = {}
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=get_reconfigure_step_schema(config_entry),
+            errors=errors,
         )
-        self.hass.async_create_task(
-            self.hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={
-                    "source": SOURCE_RECONFIGURE,
-                    "entry_id": config_entry.entry_id,
-                },
-            ),
-            eager_start=True,
-        )
-        return self.async_abort(reason="reconfigure_started")
 
     async def async_step_assist(
         self, user_input: dict[str, Any] | None = None

@@ -78,8 +78,14 @@
     },
     "options": {
         "abort": {
-            "config_entry_not_available": "The config entry is no longer available.",
-            "reconfigure_started": "Opening API key and base URL settings."
+            "config_entry_not_available": "The config entry is no longer available."
+        },
+        "error": {
+            "cannot_connect": "Cannot connect",
+            "invalid_auth": "Invalid auth",
+            "api_error": "API error",
+            "unknown": "Unknown error",
+            "url_required": "Base URL is required"
         },
         "step": {
             "init": {
@@ -107,6 +113,17 @@
                 },
                 "data_description": {
                     "llm_hass_api": "No selection = no device control"
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigure DeepSeek",
+                "description": "Update your API key or base URL. Assist and model settings stay unchanged.",
+                "data": {
+                    "api_key": "API Key",
+                    "base_url": "API Base URL"
+                },
+                "data_description": {
+                    "api_key": "API key from platform.deepseek.com"
                 }
             }
         }
