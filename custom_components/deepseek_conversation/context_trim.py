@@ -1,11 +1,7 @@
 """Context trimming for Assist API requests.
 
-Stage 1: cap serialized Home Assistant tool result JSON before it is sent to
-DeepSeek (large GetLiveContext payloads are the usual context-limit trigger).
-Stage 2: drop oldest complete user rounds from the messages array while keeping
-the system prompt and intact assistant/tool chains per round.
-
-Used from conversation.py when building or extending the messages array. Options:
+Caps serialized tool result JSON and optionally limits Assist history by user
+turn before messages are sent to DeepSeek. Used from conversation.py. Options:
 CONF_CONTEXT_MANAGEMENT_ENABLED, CONF_MAX_TOOL_RESULT_CHARS,
 CONF_MAX_HISTORY_ROUNDS in config_flow.py.
 """
@@ -218,7 +214,7 @@ def trim_messages_for_api(
     *,
     options: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    """Apply stage-2 history trimming before a chat completion request."""
+    """Trim Assist history by user round before a chat completion request."""
     return trim_message_history_by_rounds(
         messages,
         max_rounds=max_history_rounds_from_options(options),

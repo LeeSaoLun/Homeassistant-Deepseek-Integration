@@ -1,5 +1,3 @@
-# Removed generate_image service
-
 generate_content:
   name: Generate content (DeepSeek) # Added (DeepSeek) for clarity
   description: Sends a conversational query to DeepSeek. Optional per-call overrides for model, temperature, thinking, max_tokens, and JSON response format; unset fields use the integration options. When reasoning is enabled, the response includes a `reasoning` field alongside `text` and `usage`.
