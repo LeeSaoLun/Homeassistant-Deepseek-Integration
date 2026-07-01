@@ -40,25 +40,16 @@ type DeepSeekConfigEntry = ConfigEntry
 # Updated imports from const
 from .const import (
     CONF_CHAT_MODEL,
-    CONF_MAX_TOKENS,
     CONF_PROMPT,
-    coerce_max_tokens,
+    build_chat_completion_args,
     DEFAULT_SYSTEM_PROMPT,
-    CONF_REASONING_EFFORT,
-    CONF_TEMPERATURE,
-    CONF_THINKING_ENABLED,
     CONF_STRIP_MARKDOWN,
-    CONF_TOP_P,
+    CONF_THINKING_ENABLED,
     DEFAULT_THINKING_ENABLED,
     DEFAULT_STRIP_MARKDOWN,
-    DOMAIN, # Use updated domain
-    LOGGER, # Use the logger from const
+    DOMAIN,
+    LOGGER,
     RECOMMENDED_CHAT_MODEL,
-    RECOMMENDED_MAX_TOKENS,
-    RECOMMENDED_REASONING_EFFORT,
-    RECOMMENDED_TEMPERATURE,
-    RECOMMENDED_TOP_P,
-    deepseek_chat_thinking_params,
 )
 
 # Max number of back and forth with the LLM for tool usage
@@ -628,36 +619,17 @@ class DeepSeekConversationEntity(
         LOGGER.debug("Sending messages to DeepSeek (excluding system): %s", json.dumps(initial_messages, indent=2, cls=_HAJSONEncoder))
         # --- End Convert ---
 
-        def _build_model_args(messages: list[dict[str, Any]]) -> dict[str, Any]:
-            args: dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": coerce_max_tokens(
-                    options.get(CONF_MAX_TOKENS, RECOMMENDED_MAX_TOKENS)
-                ),
-                "stream": True,
-                **deepseek_chat_thinking_params(
-                    thinking_enabled=thinking_on,
-                    reasoning_effort=options.get(
-                        CONF_REASONING_EFFORT, RECOMMENDED_REASONING_EFFORT
-                    ),
-                ),
-            }
-            if not thinking_on:
-                args["top_p"] = options.get(CONF_TOP_P, RECOMMENDED_TOP_P)
-                args["temperature"] = options.get(
-                    CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE
-                )
-            if tools:
-                args["tools"] = tools
-            if tool_choice:
-                args["tool_choice"] = tool_choice
-            return args
-
         max_iterations_reached = False
         current_messages = list(initial_messages)
         for _iteration in range(MAX_TOOL_ITERATIONS):
-            model_args = _build_model_args(current_messages)
+            model_args = build_chat_completion_args(
+                model=model,
+                messages=current_messages,
+                options=options,
+                stream=True,
+                tools=tools,
+                tool_choice=tool_choice,
+            )
             LOGGER.debug("Model arguments for DeepSeek: %s", model_args)
 
             try:

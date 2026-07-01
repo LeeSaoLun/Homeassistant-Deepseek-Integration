@@ -38,27 +38,16 @@ from .debug import async_run_debug_suite
 
 # Updated imports from const.py
 from .const import (
-    coerce_max_tokens,
+    build_chat_completion_args,
     DEFAULT_SYSTEM_PROMPT,
     CONF_CHAT_MODEL,
     CONF_FILENAMES,
-    CONF_MAX_TOKENS,
     CONF_PROMPT,
-    CONF_REASONING_EFFORT,
-    CONF_TEMPERATURE,
-    CONF_THINKING_ENABLED,
-    CONF_TOP_P,
     CONF_BASE_URL,
-    DEFAULT_THINKING_ENABLED,
-    DOMAIN, # Use the updated domain
-    LOGGER, # Keep using the logger from const
+    DOMAIN,
+    LOGGER,
     RECOMMENDED_CHAT_MODEL,
-    RECOMMENDED_MAX_TOKENS,
-    RECOMMENDED_REASONING_EFFORT,
-    RECOMMENDED_TEMPERATURE,
-    RECOMMENDED_TOP_P,
-    DEEPSEEK_API_BASE_URL, # Use the base URL constant
-    deepseek_chat_thinking_params,
+    DEEPSEEK_API_BASE_URL,
 )
 
 # Removed SERVICE_GENERATE_IMAGE
@@ -172,35 +161,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         # --- End of message format adaptation ---
 
         try:
-            # --- Switched to client.chat.completions.create ---
-            thinking_on = entry.options.get(
-                CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED
+            model_args = build_chat_completion_args(
+                model=model,
+                messages=messages,
+                options=entry.options,
+                stream=False,
             )
-            model_args = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": coerce_max_tokens(
-                    entry.options.get(CONF_MAX_TOKENS, RECOMMENDED_MAX_TOKENS)
-                ),
-                "top_p": entry.options.get(CONF_TOP_P, RECOMMENDED_TOP_P),
-                "temperature": entry.options.get(
-                    CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE
-                ),
-                # 'user': call.context.user_id, # Optional: Check if DeepSeek uses this
-                "stream": False, # Service call expects a single response
-                **deepseek_chat_thinking_params(
-                    thinking_enabled=thinking_on,
-                    reasoning_effort=entry.options.get(
-                        CONF_REASONING_EFFORT, RECOMMENDED_REASONING_EFFORT
-                    ),
-                ),
-            }
-
-            # Removed OpenAI specific 'reasoning' and 'store' args
-            # if model.startswith("o"): ...
 
             response = await client.chat.completions.create(**model_args)
-            # --- End of API call change ---
 
             # Extract response text
             # Assuming response structure is similar to OpenAI's chat completion

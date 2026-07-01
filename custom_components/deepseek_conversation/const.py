@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 # Changed domain to reflect DeepSeek
@@ -97,6 +98,45 @@ def deepseek_chat_thinking_params(
     if thinking_enabled:
         params["reasoning_effort"] = normalized_reasoning_effort(reasoning_effort)
     return params
+
+
+def build_chat_completion_args(
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    options: Mapping[str, Any],
+    stream: bool,
+    tools: list[dict[str, Any]] | None = None,
+    tool_choice: str | dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build kwargs for ``client.chat.completions.create``.
+
+    Shared by conversation.py (Assist) and __init__.py (generate_content).
+    Temperature and top_p are omitted when reasoning/thinking is enabled.
+    """
+    thinking_on = bool(options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED))
+    args: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": coerce_max_tokens(
+            options.get(CONF_MAX_TOKENS, RECOMMENDED_MAX_TOKENS)
+        ),
+        "stream": stream,
+        **deepseek_chat_thinking_params(
+            thinking_enabled=thinking_on,
+            reasoning_effort=options.get(
+                CONF_REASONING_EFFORT, RECOMMENDED_REASONING_EFFORT
+            ),
+        ),
+    }
+    if not thinking_on:
+        args["top_p"] = options.get(CONF_TOP_P, RECOMMENDED_TOP_P)
+        args["temperature"] = options.get(CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE)
+    if tools:
+        args["tools"] = tools
+    if tool_choice:
+        args["tool_choice"] = tool_choice
+    return args
 
 
 # Removed OpenAI specific constants
