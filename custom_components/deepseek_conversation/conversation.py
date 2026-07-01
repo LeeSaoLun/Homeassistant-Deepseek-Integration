@@ -338,41 +338,43 @@ def _final_speech_from_chat_log(
 def _yield_assistant_text_deltas(
     *,
     role_emitted: bool,
-    is_follow_up: bool,
     content_delta: str | None,
     reasoning_delta: str | None,
 ) -> tuple[list[conversation.AssistantContentDeltaDict], bool]:
     """Build HA chat_log deltas for streamed assistant text.
 
-    After tool results the Assist UI keeps ``currentDeltaRole`` at ``tool_result``
-    until a new ``role: assistant`` arrives. Follow-up API iterations therefore
-    emit role first, then content/thinking in separate deltas (OpenAI integration
-    pattern). Never send ``content: ""`` — empty strings are falsy in HA and the
-    frontend and drop the payload.
+    Never send ``content: ""`` — empty strings are falsy in HA and the Assist UI.
     """
     deltas: list[conversation.AssistantContentDeltaDict] = []
     if not role_emitted and (content_delta or reasoning_delta):
-        if is_follow_up:
-            deltas.append({"role": "assistant"})
-            role_emitted = True
-            if content_delta:
-                deltas.append({"content": content_delta})
-            if reasoning_delta:
-                deltas.append({"thinking_content": reasoning_delta})
-        else:
-            first: conversation.AssistantContentDeltaDict = {"role": "assistant"}
-            if content_delta:
-                first["content"] = content_delta
-            if reasoning_delta:
-                first["thinking_content"] = reasoning_delta
-            deltas.append(first)
-            role_emitted = True
+        first: conversation.AssistantContentDeltaDict = {"role": "assistant"}
+        if content_delta:
+            first["content"] = content_delta
+        if reasoning_delta:
+            first["thinking_content"] = reasoning_delta
+        deltas.append(first)
+        role_emitted = True
     else:
         if content_delta:
             deltas.append({"content": content_delta})
         if reasoning_delta:
             deltas.append({"thinking_content": reasoning_delta})
     return deltas, role_emitted
+
+
+def _reset_assist_ui_role_after_tools(chat_log: conversation.ChatLog) -> None:
+    """Reset Assist ``currentDeltaRole`` after tool results (parallel tools stay on tool_result).
+
+    Each tool result delta sets the frontend role to ``tool_result``. Without an
+    explicit assistant role before the next API stream, follow-up thinking/content
+    deltas are ignored by ha-assist-chat (isAssistantDelta is false).
+    """
+    if chat_log.delta_listener is None:
+        return
+    LOGGER.debug(
+        "[Debug conversation]: resetting Assist UI role to assistant after tool results"
+    )
+    chat_log.delta_listener(chat_log, {"role": "assistant"})
 
 
 def _stream_delta_text(delta: Any, field: str) -> str | None:
@@ -416,13 +418,9 @@ async def _transform_stream(
     *,
     thinking_enabled: bool = False,
     role_already_emitted: bool = False,
-    is_follow_up: bool = False,
     usage_events: list[CompletionUsage] | None = None,
 ) -> AsyncGenerator[conversation.AssistantContentDeltaDict, None]:
-    """Transform a DeepSeek delta stream (ChatCompletionChunk) into HA format.
-
-    ``is_follow_up`` is True for API rounds after tool results (second+ iteration).
-    """
+    """Transform a DeepSeek delta stream (ChatCompletionChunk) into HA format."""
     current_tool_calls: list[dict[str, Any]] = []
     current_tool_call_args_buffer: dict[int, str] = {}
     role: Literal["assistant"] | None = None
@@ -468,7 +466,6 @@ async def _transform_stream(
 
             text_deltas, role_emitted = _yield_assistant_text_deltas(
                 role_emitted=role_emitted,
-                is_follow_up=is_follow_up,
                 content_delta=content_delta,
                 reasoning_delta=reasoning_delta,
             )
@@ -754,6 +751,9 @@ class DeepSeekConversationEntity(
                 )
 
             try:
+                if _iteration > 0 and chat_log.unresponded_tool_results:
+                    _reset_assist_ui_role_after_tools(chat_log)
+
                 iteration_usage: list[CompletionUsage] = []
                 async for _ in chat_log.async_add_delta_content_stream(
                     user_input.agent_id,
@@ -761,7 +761,6 @@ class DeepSeekConversationEntity(
                         chat_log,
                         result,
                         thinking_enabled=bool(thinking_on),
-                        is_follow_up=_iteration > 0,
                         usage_events=iteration_usage,
                     ),
                 ):
