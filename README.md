@@ -27,6 +27,8 @@ Community project — not part of Home Assistant Core.
 2. API key (optional: base URL, model)
 3. **Configure** for system prompt, model, reasoning, tools (Home Assistant API), max tokens, etc.
 
+**Change API key:** integration card **⋮ → Reconfigure** (not the gear icon; that opens options only).
+
 When **reasoning is off**, you set temperature and top_p. When **reasoning is on**, you set reasoning effort instead (DeepSeek API behaviour).
 
 ## Automations

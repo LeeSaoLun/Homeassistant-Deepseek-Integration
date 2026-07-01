@@ -50,6 +50,17 @@
                 "data_description": {
                     "api_key": "来自 platform.deepseek.com 的 API 密钥"
                 }
+            },
+            "reconfigure": {
+                "title": "重新配置 DeepSeek",
+                "description": "更新 API 密钥或基础地址。Assist 与模型选项保持不变。",
+                "data": {
+                    "api_key": "API 密钥",
+                    "base_url": "API 基础地址"
+                },
+                "data_description": {
+                    "api_key": "来自 platform.deepseek.com 的 API 密钥"
+                }
             }
         },
         "error": {
@@ -61,7 +72,8 @@
         },
         "abort": {
             "already_configured": "已配置过",
-            "reauth_successful": "重新验证成功。"
+            "reauth_successful": "重新验证成功。",
+            "reconfigure_successful": "重新配置成功。"
         }
     },
     "options": {

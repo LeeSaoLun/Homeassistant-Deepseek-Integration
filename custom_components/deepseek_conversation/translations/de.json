@@ -50,6 +50,17 @@
                 "data_description": {
                     "api_key": "API-Schlüssel von platform.deepseek.com"
                 }
+            },
+            "reconfigure": {
+                "title": "DeepSeek neu konfigurieren",
+                "description": "API-Schlüssel oder Basis-URL ändern. Assist- und Modell-Einstellungen bleiben unverändert.",
+                "data": {
+                    "api_key": "API-Schlüssel",
+                    "base_url": "API-Basis-URL"
+                },
+                "data_description": {
+                    "api_key": "API-Schlüssel von platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -61,7 +72,8 @@
         },
         "abort": {
             "already_configured": "Bereits konfiguriert",
-            "reauth_successful": "Erneute Anmeldung war erfolgreich."
+            "reauth_successful": "Erneute Anmeldung war erfolgreich.",
+            "reconfigure_successful": "Neu konfigurieren war erfolgreich."
         }
     },
     "options": {

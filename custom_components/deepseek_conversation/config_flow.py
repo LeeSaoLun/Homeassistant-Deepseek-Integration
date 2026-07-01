@@ -104,6 +104,19 @@ STEP_REAUTH_DATA_SCHEMA = vol.Schema(
     }
 )
 
+
+def get_reconfigure_step_schema(entry: ConfigEntry) -> vol.Schema:
+    """Schema for reconfigure (API key + base URL stored in config entry data)."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_API_KEY): str,
+            vol.Optional(
+                CONF_BASE_URL,
+                default=entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL),
+            ): str,
+        }
+    )
+
 DEFAULT_OPTIONS = {
     CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
     CONF_PROMPT: DEFAULT_SYSTEM_PROMPT,
@@ -259,6 +272,65 @@ class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=STEP_REAUTH_DATA_SCHEMA,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Update API key and base URL from the integration menu (⋮ → Reconfigure)."""
+        errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+        current_base_url = reconfigure_entry.data.get(
+            CONF_BASE_URL, DEEPSEEK_API_BASE_URL
+        )
+
+        if user_input is not None:
+            base_url = user_input.get(CONF_BASE_URL, current_base_url)
+            if isinstance(base_url, str):
+                base_url = base_url.strip()
+            if not base_url:
+                errors[CONF_BASE_URL] = "url_required"
+            else:
+                validate_data = {
+                    CONF_API_KEY: user_input[CONF_API_KEY],
+                    CONF_BASE_URL: base_url,
+                }
+                try:
+                    await validate_input(self.hass, validate_data)
+                except openai.APIConnectionError:
+                    errors["base"] = "cannot_connect"
+                except openai.AuthenticationError:
+                    errors["base"] = "invalid_auth"
+                except openai.APIStatusError as err:
+                    if err.status_code in (401, 403):
+                        errors["base"] = "invalid_auth"
+                    else:
+                        LOGGER.error(
+                            "DeepSeek API status error during reconfigure: %s", err
+                        )
+                        errors["base"] = "api_error"
+                except openai.OpenAIError as e:
+                    LOGGER.error("DeepSeek API error during reconfigure: %s", e)
+                    errors["base"] = "api_error"
+                except Exception:
+                    LOGGER.exception("Unexpected exception during reconfigure")
+                    errors["base"] = "unknown"
+                else:
+                    LOGGER.debug(
+                        "[Debug config_flow]: reconfigure successful, reloading entry"
+                    )
+                    return self.async_update_reload_and_abort(
+                        reconfigure_entry,
+                        data_updates={
+                            CONF_API_KEY: user_input[CONF_API_KEY],
+                            CONF_BASE_URL: base_url,
+                        },
+                    )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=get_reconfigure_step_schema(reconfigure_entry),
             errors=errors,
         )
 

@@ -50,6 +50,17 @@
                 "data_description": {
                     "api_key": "API key from platform.deepseek.com"
                 }
+            },
+            "reconfigure": {
+                "title": "Reconfigure DeepSeek",
+                "description": "Update your API key or base URL. Assist and model settings stay unchanged.",
+                "data": {
+                    "api_key": "API Key",
+                    "base_url": "API Base URL"
+                },
+                "data_description": {
+                    "api_key": "API key from platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -61,7 +72,8 @@
         },
         "abort": {
             "already_configured": "Already configured",
-            "reauth_successful": "Reauthentication was successful."
+            "reauth_successful": "Reauthentication was successful.",
+            "reconfigure_successful": "Reconfiguration was successful."
         }
     },
     "options": {
