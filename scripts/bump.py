@@ -128,18 +128,17 @@ def _changelog_has_version(version: str) -> bool:
     if not CHANGELOG.exists():
         return False
     content = CHANGELOG.read_text(encoding="utf-8")
+    # Do not use \b after "]" — it does not match before " - date" (] and space are
+    # both non-word characters). Release workflow uses the same heading format.
+    heading = re.escape(_section_heading(version))
     return bool(
-        re.search(
-            rf"^{re.escape(_section_heading(version))}\b",
-            content,
-            flags=re.MULTILINE,
-        )
+        re.search(rf"^{heading}(?:\s|$)", content, flags=re.MULTILINE)
     )
 
 
 def _merge_changelog(new_section: str) -> None:
     header = "# Changelog\n\n"
-    intro = "Alle wesentlichen Änderungen an dieser Integration.\n\n"
+    intro = "All notable changes to this integration.\n\n"
 
     if not CHANGELOG.exists():
         CHANGELOG.write_text(header + intro + new_section, encoding="utf-8")
@@ -174,15 +173,22 @@ def cmd_prepare(version: str) -> int:
 
     if _changelog_has_version(version):
         print(
-            f"Abbruch: CHANGELOG.md enthält bereits {_section_heading(version)}.",
+            f"Hinweis: CHANGELOG.md enthält bereits {_section_heading(version)}.",
             file=sys.stderr,
         )
+        if _read_manifest_version() == version:
+            print(
+                f"Release {version} ist vorbereitet. Nur noch committen und pushen:\n"
+                f"  python scripts\\bump.py finalize {version}",
+                file=sys.stderr,
+            )
         return 1
 
     old_version = _read_manifest_version()
     if version == old_version:
         print(
-            f"Hinweis: manifest steht bereits auf {old_version}; wird neu geschrieben."
+            f"Hinweis: manifest steht bereits auf {old_version}; wird neu geschrieben.",
+            file=sys.stderr,
         )
 
     tag = _last_tag()
