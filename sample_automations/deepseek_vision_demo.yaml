@@ -1,0 +1,50 @@
+# Optional vision demo — copy, paste, run after placing any JPG/PNG at /config/www/deepseek_demo.jpg
+# Requires: Allow vision enabled in DeepSeek options.
+# Trigger: Developer tools → Events → deepseek_vision_demo
+
+alias: DeepSeek Vision Demo
+description: generate_content with filenames (vision). Place any image at /config/www/deepseek_demo.jpg first.
+mode: single
+
+triggers:
+  - trigger: event
+    event_type: deepseek_vision_demo
+
+conditions:
+  - condition: template
+    value_template: >-
+      {% set ns = namespace(ok=false) %}
+      {% for e in integration_entities('deepseek_conversation') %}
+        {% if e.startswith('conversation.') %}{% set ns.ok = true %}{% endif %}
+      {% endfor %}
+      {{ ns.ok }}
+
+actions:
+  - variables:
+      deepseek_config_entry: >-
+        {% for e in integration_entities('deepseek_conversation') %}
+        {%- if e.startswith('conversation.') %}{{ config_entry_id(e) }}{% break %}{% endif %}
+        {% endfor %}
+      image_path: /config/www/deepseek_demo.jpg
+
+  - action: deepseek_conversation.generate_content
+    data:
+      config_entry: "{{ deepseek_config_entry }}"
+      prompt: Describe this image in two short sentences. Reply in English.
+      filenames:
+        - "{{ image_path }}"
+      chat_model: deepseek-v4-flash
+      thinking_enabled: false
+      max_tokens: 200
+    response_variable: deepseek_vision
+
+  - action: persistent_notification.create
+    data:
+      title: DeepSeek Vision Demo
+      message: >-
+        Image: {{ image_path }}
+
+        {{ deepseek_vision.text }}
+
+        usage: {{ deepseek_vision.usage }}
+      notification_id: deepseek_vision_demo
