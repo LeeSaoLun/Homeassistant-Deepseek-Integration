@@ -1,4 +1,8 @@
-"""Token usage sensors for DeepSeek Conversation."""
+"""Token usage sensors for DeepSeek Conversation.
+
+Entity IDs use English suggested_object_id (language-neutral); display names
+come from translations (entity.sensor.* in translations/*.json).
+"""
 
 from __future__ import annotations
 
@@ -34,6 +38,7 @@ class DeepSeekUsageCounterSensor(RestoreSensor, SensorEntity):
         self._entry = entry
         self._attr_translation_key = translation_key
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
+        self._attr_suggested_object_id = unique_suffix
         self._attr_native_unit_of_measurement = unit
         self._attr_icon = icon
         self._attr_device_info = dr.DeviceInfo(
@@ -77,6 +82,7 @@ class DeepSeekSnapshotSensor(SensorEntity):
         self._entry = entry
         self._attr_translation_key = translation_key
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
+        self._attr_suggested_object_id = unique_suffix
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
         )
@@ -102,6 +108,7 @@ class DeepSeekLastRequestSensor(SensorEntity):
     def __init__(self, entry: DeepSeekConfigEntry) -> None:
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_last_request_tokens"
+        self._attr_suggested_object_id = "last_request_tokens"
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
         )

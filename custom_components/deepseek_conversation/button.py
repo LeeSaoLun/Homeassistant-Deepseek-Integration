@@ -1,7 +1,7 @@
 """Button entities for DeepSeek Conversation.
 
 Reset usage: calls UsageTracker.reset_all() in usage_metrics.py (all token/request
-sensors on the integration device).
+sensors on the integration device). Entity ID uses English suggested_object_id.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ class DeepSeekResetUsageButton(ButtonEntity):
     def __init__(self, entry: DeepSeekConfigEntry) -> None:
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_reset_usage"
+        self._attr_suggested_object_id = "reset_usage"
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
         )
