@@ -1,5 +1,8 @@
 name: Release
 
+# Laeuft nur auf main (nach dev -> main Merge). bump.bat pusht Entwurf nach dev;
+# der Tag wird hier erstellt, wenn manifest.json in diesem Push geaendert wurde.
+
 on:
   push:
     branches:
