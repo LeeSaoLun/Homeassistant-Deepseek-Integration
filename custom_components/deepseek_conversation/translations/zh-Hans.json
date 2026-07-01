@@ -1,4 +1,19 @@
 {
+    "title": "DeepSeek Conversation",
+    "common": {
+        "debug_notification_title": "DeepSeek 诊断已完成",
+        "debug_notification_report": "报告：{path}",
+        "debug_notification_summary": "摘要：{summary}",
+        "debug_notification_errors_heading": "错误（如有）：",
+        "debug_notification_no_errors": "（无）",
+        "debug_notification_error_line": "- {name}：{error}",
+        "debug_notification_details": "详情：打开报告文件（文本 + JSON 附录）。"
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "未找到配置条目「{config_entry}」，或该条目不属于 DeepSeek Conversation。"
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -34,6 +49,9 @@
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "配置条目已不可用。"
+        },
         "step": {
             "init": {
                 "title": "DeepSeek 选项",
@@ -64,9 +82,36 @@
                 "deepseek-chat": "旧版：deepseek-chat（至 2026-07-24）",
                 "deepseek-reasoner": "旧版：deepseek-reasoner（至 2026-07-24）"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "max": "最大",
+                "xhigh": "极高"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "生成内容",
+            "description": "向 DeepSeek 发送对话提示并返回模型回复。",
+            "fields": {
+                "config_entry": {
+                    "name": "集成条目",
+                    "description": "要使用的 DeepSeek Conversation 配置条目。"
+                },
+                "prompt": {
+                    "name": "提示词",
+                    "description": "发送给模型的用户消息。"
+                },
+                "filenames": {
+                    "name": "文件路径",
+                    "description": "可选的本地图片路径（须在 allowlist_external_dirs 中允许）。"
+                }
+            }
+        },
         "run_debug": {
             "name": "运行 DeepSeek 诊断",
             "description": "全面诊断：环境、HTTP 探测、可选 models.list、已注册的 HA LLM API、实体注册表、大量非流式与流式补全测试（思考开关、系统消息、多轮、JSON 模式、并行小请求）、日志摘录与报告末尾 JSON 附录。多次短 API 调用；写入 /config/deepseek_conversation_debug_report.txt 并发送简短通知（摘要 + 失败项）。",

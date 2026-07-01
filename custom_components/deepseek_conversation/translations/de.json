@@ -1,4 +1,19 @@
 {
+    "title": "DeepSeek Conversation",
+    "common": {
+        "debug_notification_title": "DeepSeek-Debug abgeschlossen",
+        "debug_notification_report": "Bericht: {path}",
+        "debug_notification_summary": "Zusammenfassung: {summary}",
+        "debug_notification_errors_heading": "Fehler (falls vorhanden):",
+        "debug_notification_no_errors": "(keine)",
+        "debug_notification_error_line": "- {name}: {error}",
+        "debug_notification_details": "Details: Berichtdatei öffnen (Text + JSON-Anhang)."
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "Konfigurationseintrag \"{config_entry}\" wurde nicht gefunden oder gehört nicht zu DeepSeek Conversation."
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -34,6 +49,9 @@
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "Der Konfigurationseintrag ist nicht mehr verfügbar."
+        },
         "step": {
             "init": {
                 "title": "DeepSeek-Optionen",
@@ -64,9 +82,36 @@
                 "deepseek-chat": "Legacy: deepseek-chat (bis 2026-07-24)",
                 "deepseek-reasoner": "Legacy: deepseek-reasoner (bis 2026-07-24)"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "Niedrig",
+                "medium": "Mittel",
+                "high": "Hoch",
+                "max": "Max",
+                "xhigh": "Sehr hoch"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "Inhalt generieren",
+            "description": "Sendet eine Konversationsanfrage an DeepSeek und gibt die Antwort zurück.",
+            "fields": {
+                "config_entry": {
+                    "name": "Integrations-Eintrag",
+                    "description": "Welcher DeepSeek-Conversation-Eintrag verwendet werden soll."
+                },
+                "prompt": {
+                    "name": "Prompt",
+                    "description": "Nutzer-Nachricht an das Modell."
+                },
+                "filenames": {
+                    "name": "Dateipfade",
+                    "description": "Optionale lokale Bildpfade (müssen in allowlist_external_dirs erlaubt sein)."
+                }
+            }
+        },
         "run_debug": {
             "name": "DeepSeek-Debug ausführen",
             "description": "Umfassende Diagnose: Umgebung, HTTP-Probe, optional models.list, registrierte HA-LLM-APIs, Entity-Registry, viele chat.completions- und Stream-Tests (Thinking an/aus, Systemnachricht, Mehr-Turn, JSON-Modus, parallele Mini-Pings), Log-Auszug und JSON-Anhang im Report. Viele kurze API-Aufrufe; schreibt /config/deepseek_conversation_debug_report.txt und eine Kurznotiz (Zusammenfassung + Fehler).",

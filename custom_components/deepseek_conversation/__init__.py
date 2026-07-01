@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from contextlib import suppress
 from mimetypes import guess_file_type
 from pathlib import Path
 
@@ -24,7 +25,11 @@ from homeassistant.exceptions import (  # pyright: ignore[reportMissingImports]
     HomeAssistantError,
     ServiceValidationError,
 )
-from homeassistant.helpers import config_validation as cv, selector  # pyright: ignore[reportMissingImports]
+from homeassistant.helpers import (  # pyright: ignore[reportMissingImports]
+    config_validation as cv,
+    selector,
+    translation,
+)
 from homeassistant.helpers.httpx_client import get_async_client  # pyright: ignore[reportMissingImports]
 from homeassistant.helpers.typing import ConfigType  # pyright: ignore[reportMissingImports]
 
@@ -50,6 +55,21 @@ SERVICE_RUN_DEBUG = "run_debug"
 
 PLATFORMS = (Platform.CONVERSATION,)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def _async_localize(
+    hass: HomeAssistant, key: str, **placeholders: str
+) -> str:
+    """Return a localized string from this integration's ``common`` translations."""
+    localize_key = f"component.{DOMAIN}.common.{key}"
+    strings = await translation.async_get_translations(
+        hass, hass.config.language, "common", integrations=[DOMAIN]
+    )
+    message = strings.get(localize_key, key)
+    if placeholders:
+        with suppress(KeyError):
+            message = message.format(**placeholders)
+    return message
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -181,25 +201,39 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         path = report.get("report_path", "")
         summary = report.get("summary") or report.get("tests", {}).get("summary", {})
         parts = [
-            f"Bericht: {path}",
+            await _async_localize(hass, "debug_notification_report", path=path),
             "",
-            f"Zusammenfassung: {summary}",
+            await _async_localize(
+                hass, "debug_notification_summary", summary=str(summary)
+            ),
             "",
-            "Fehler (falls vorhanden):",
+            await _async_localize(hass, "debug_notification_errors_heading"),
         ]
         fails: list[str] = []
         for name, body in report.get("tests", {}).items():
             if name in ("summary", "client"):
                 continue
             if isinstance(body, dict) and body.get("ok") is False:
-                fails.append(f"- {name}: {str(body.get('error', body))[:600]}")
-        parts.extend(fails if fails else ["(keine)"])
+                error_text = str(body.get("error", body))[:600]
+                fails.append(
+                    await _async_localize(
+                        hass,
+                        "debug_notification_error_line",
+                        name=name,
+                        error=error_text,
+                    )
+                )
+        parts.extend(
+            fails
+            if fails
+            else [await _async_localize(hass, "debug_notification_no_errors")]
+        )
         parts.append("")
-        parts.append("Details: Berichtdatei öffnen (Text + JSON-Anhang).")
+        parts.append(await _async_localize(hass, "debug_notification_details"))
         msg = "\n".join(parts)[:15000]
         persistent_notification.async_create(
             hass,
-            title="DeepSeek-Debug abgeschlossen",
+            title=await _async_localize(hass, "debug_notification_title"),
             message=msg,
             notification_id="deepseek_conversation_debug_done",
         )

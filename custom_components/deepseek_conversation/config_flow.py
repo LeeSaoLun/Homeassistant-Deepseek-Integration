@@ -76,6 +76,7 @@ def _chat_model_selector() -> SelectSelector:
         SelectSelectorConfig(
             options=_chat_model_select_options(),
             custom_value=True,
+            translation_key=CONF_CHAT_MODEL,
         )
     )
 
@@ -350,8 +351,8 @@ def deepseek_config_option_schema(
         base_url = options[CONF_BASE_URL]
 
     reasoning_effort_options = [
-        SelectOptionDict(label=label, value=value)
-        for value, label in REASONING_EFFORT_SELECT
+        SelectOptionDict(label=value, value=value)
+        for value, _ in REASONING_EFFORT_SELECT
     ]
 
     schema: VolDictType = {
@@ -428,7 +429,10 @@ def deepseek_config_option_schema(
                 CONF_REASONING_EFFORT, RECOMMENDED_REASONING_EFFORT
             ),
         ): SelectSelector(
-            SelectSelectorConfig(options=reasoning_effort_options)
+            SelectSelectorConfig(
+                options=reasoning_effort_options,
+                translation_key=CONF_REASONING_EFFORT,
+            )
         ),
     }
     return schema

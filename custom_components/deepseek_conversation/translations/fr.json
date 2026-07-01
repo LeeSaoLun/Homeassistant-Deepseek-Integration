@@ -1,4 +1,19 @@
 {
+    "title": "DeepSeek Conversation",
+    "common": {
+        "debug_notification_title": "Diagnostic DeepSeek terminé",
+        "debug_notification_report": "Rapport : {path}",
+        "debug_notification_summary": "Résumé : {summary}",
+        "debug_notification_errors_heading": "Erreurs (le cas échéant) :",
+        "debug_notification_no_errors": "(aucune)",
+        "debug_notification_error_line": "- {name} : {error}",
+        "debug_notification_details": "Détails : ouvrez le fichier de rapport (texte + annexe JSON)."
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "L’entrée de configuration « {config_entry} » est introuvable ou n’appartient pas à DeepSeek Conversation."
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -34,6 +49,9 @@
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "L’entrée de configuration n’est plus disponible."
+        },
         "step": {
             "init": {
                 "title": "Options DeepSeek",
@@ -64,9 +82,36 @@
                 "deepseek-chat": "Ancien : deepseek-chat (jusqu’au 2026-07-24)",
                 "deepseek-reasoner": "Ancien : deepseek-reasoner (jusqu’au 2026-07-24)"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "Faible",
+                "medium": "Moyen",
+                "high": "Élevé",
+                "max": "Max",
+                "xhigh": "Très élevé"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "Générer du contenu",
+            "description": "Envoie une requête conversationnelle à DeepSeek et renvoie la réponse du modèle.",
+            "fields": {
+                "config_entry": {
+                    "name": "Entrée d’intégration",
+                    "description": "Entrée DeepSeek Conversation à utiliser."
+                },
+                "prompt": {
+                    "name": "Invite",
+                    "description": "Message utilisateur envoyé au modèle."
+                },
+                "filenames": {
+                    "name": "Chemins de fichiers",
+                    "description": "Chemins d’images locaux optionnels (doivent être autorisés dans allowlist_external_dirs)."
+                }
+            }
+        },
         "run_debug": {
             "name": "Lancer le diagnostic DeepSeek",
             "description": "Diagnostic étendu : environnement, sonde HTTP, models.list optionnel, APIs LLM HA, registre d’entités, nombreux appels chat completions (flux et non-flux, thinking, message système, multi-tours, JSON, pings parallèles), extrait de journal et annexe JSON. Nombreux appels API courts ; écrit /config/deepseek_conversation_debug_report.txt et une notification courte (résumé + échecs).",
