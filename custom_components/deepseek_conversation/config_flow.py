@@ -175,15 +175,15 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
     if not base_url:
         base_url = DEEPSEEK_API_BASE_URL
 
+    # The OpenAI client wraps Home Assistant's shared httpx client, which HA owns
+    # and closes on shutdown; closing it here would only trigger a framework
+    # warning without releasing anything, so the client is left for GC.
     client = openai.AsyncOpenAI(
         api_key=data[CONF_API_KEY],
         base_url=base_url,
         http_client=get_async_client(hass),
     )
-    try:
-        await async_probe_deepseek_client(client)
-    finally:
-        await client.close()
+    await async_probe_deepseek_client(client)
 
 
 async def async_validate_reconfigure_input(

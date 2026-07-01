@@ -337,18 +337,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> bool:
-    """Unload DeepSeek and close the underlying OpenAI client.
+    """Unload DeepSeek platforms.
 
-    The OpenAI ``AsyncClient`` owns an httpx connection pool; reload runs only
-    for connection changes (base_url, API key via reauth), so ``close()`` avoids
-    leaking the pool on those reloads.
+    The OpenAI client is built on Home Assistant's shared httpx client (see
+    ``get_async_client`` in ``async_setup_entry``). That connection pool is owned
+    by HA and must not be closed here — doing so only triggers a framework warning
+    without releasing anything — so unload just tears down the platforms.
     """
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    runtime: DeepSeekRuntimeData | None = getattr(entry, "runtime_data", None)
-    client = runtime.client if runtime is not None else None
-    if client is not None:
-        try:
-            await client.close()
-        except (openai.OpenAIError, OSError, RuntimeError) as err:
-            LOGGER.debug("Error closing DeepSeek client on unload: %s", err)
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
