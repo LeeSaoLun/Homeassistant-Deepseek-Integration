@@ -90,17 +90,8 @@
         "step": {
             "init": {
                 "title": "Options DeepSeek",
-                "description": "Choisissez ce que vous souhaitez modifier.",
-                "menu_options": {
-                    "assist": "Paramètres Assist et modèle",
-                    "reconfigure": "Clé API et URL de base"
-                }
-            },
-            "assist": {
-                "title": "Options DeepSeek",
-                "description": "DeepSeek V4 utilise un seul modèle pour le chat et le raisonnement. Avec le raisonnement activé, l’API envoie la réflexion (extra_body) et l’effort de raisonnement ; température et top_p sont ignorés. Sans raisonnement, température et top_p s’appliquent. Tous les champs restent visibles pour basculer sans rouvrir le dialogue. Les anciens identifiants de modèle fonctionnent jusqu’au 2026-07-24.",
+                "description": "Assist, modèle et comportement API. Pour la clé API ou l’URL de base, utilisez le menu de l’intégration (⋮ → Reconfigurer).",
                 "data": {
-                    "base_url": "URL de base de l’API",
                     "prompt": "Invite système",
                     "llm_hass_api": "API Home Assistant",
                     "chat_model": "Modèle",
@@ -112,18 +103,12 @@
                     "reasoning_effort": "Effort de raisonnement"
                 },
                 "data_description": {
-                    "llm_hass_api": "Aucune sélection = aucun contrôle"
-                }
-            },
-            "reconfigure": {
-                "title": "Reconfigurer DeepSeek",
-                "description": "Mettez à jour la clé API ou l’URL de base. Les options Assist et modèle restent inchangées.",
-                "data": {
-                    "api_key": "Clé API",
-                    "base_url": "URL de base de l’API"
-                },
-                "data_description": {
-                    "api_key": "Clé API depuis platform.deepseek.com"
+                    "llm_hass_api": "Aucune sélection = aucun contrôle",
+                    "thinking_enabled": "Si activé, l’API utilise l’effort de raisonnement ; température et top_p sont ignorés.",
+                    "reasoning_effort": "Utilisé uniquement si le raisonnement est activé.",
+                    "temperature": "Utilisé uniquement si le raisonnement est désactivé.",
+                    "top_p": "Utilisé uniquement si le raisonnement est désactivé.",
+                    "chat_model": "Les anciens identifiants deepseek-chat et deepseek-reasoner fonctionnent jusqu’au 2026-07-24."
                 }
             }
         }

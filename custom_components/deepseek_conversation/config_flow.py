@@ -27,6 +27,9 @@ from homeassistant.helpers.selector import (  # pyright: ignore[reportMissingImp
     SelectSelector,
     SelectSelectorConfig,
     TemplateSelector,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 from homeassistant.helpers.typing import VolDictType  # pyright: ignore[reportMissingImports]
 
@@ -80,12 +83,30 @@ def _chat_model_selector() -> SelectSelector:
     )
 
 
+def _api_key_selector() -> TextSelector:
+    return TextSelector(
+        TextSelectorConfig(
+            type=TextSelectorType.PASSWORD,
+            autocomplete="current-password",
+        )
+    )
+
+
+def _base_url_selector() -> TextSelector:
+    return TextSelector(
+        TextSelectorConfig(
+            type=TextSelectorType.URL,
+            autocomplete="url",
+        )
+    )
+
+
 def get_user_step_schema() -> vol.Schema:
     """Schema for initial config (API key, URL, V4 / legacy model)."""
     return vol.Schema(
         {
-            vol.Required(CONF_API_KEY): str,
-            vol.Optional(CONF_BASE_URL, default=DEEPSEEK_API_BASE_URL): str,
+            vol.Required(CONF_API_KEY): _api_key_selector(),
+            vol.Optional(CONF_BASE_URL, default=DEEPSEEK_API_BASE_URL): _base_url_selector(),
             vol.Optional(
                 CONF_CHAT_MODEL, default=RECOMMENDED_CHAT_MODEL
             ): _chat_model_selector(),
@@ -95,7 +116,7 @@ def get_user_step_schema() -> vol.Schema:
 
 STEP_REAUTH_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_API_KEY): str,
+        vol.Required(CONF_API_KEY): _api_key_selector(),
     }
 )
 
@@ -104,11 +125,11 @@ def get_reconfigure_step_schema(entry: ConfigEntry) -> vol.Schema:
     """Schema for reconfigure (API key + base URL stored in config entry data)."""
     return vol.Schema(
         {
-            vol.Required(CONF_API_KEY): str,
+            vol.Required(CONF_API_KEY): _api_key_selector(),
             vol.Optional(
                 CONF_BASE_URL,
                 default=entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL),
-            ): str,
+            ): _base_url_selector(),
         }
     )
 
@@ -362,58 +383,7 @@ class DeepSeekOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Options entry menu: Assist settings or open reconfigure flow."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["assist", "reconfigure"],
-        )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """API key and base URL form inside the options flow (same fields as ⋮ reconfigure)."""
-        try:
-            config_entry = self.config_entry
-        except AttributeError:
-            LOGGER.error("config_entry not available in OptionsFlow")
-            return self.async_abort(reason="config_entry_not_available")
-
-        current_base_url = config_entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL)
-
-        if user_input is not None:
-            errors, data_updates = await async_validate_reconfigure_input(
-                self.hass,
-                user_input,
-                current_base_url=current_base_url,
-            )
-            if data_updates is not None:
-                LOGGER.debug(
-                    "[Debug config_flow]: options reconfigure successful, reloading entry"
-                )
-                self.hass.config_entries.async_update_entry(
-                    config_entry,
-                    data={**config_entry.data, **data_updates},
-                )
-                await self.hass.config_entries.async_reload(config_entry.entry_id)
-                return self.async_create_entry(
-                    title="",
-                    data=dict(config_entry.options),
-                )
-        else:
-            errors = {}
-
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=get_reconfigure_step_schema(config_entry),
-            errors=errors,
-        )
-
-    async def async_step_assist(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Manage Assist and model options."""
-        # self.config_entry should be automatically available as a property
-        # Access it safely to avoid AttributeError
+        """Manage Assist and model options (connection: integration ⋮ → Reconfigure)."""
         try:
             config_entry = self.config_entry
         except AttributeError:
@@ -423,53 +393,22 @@ class DeepSeekOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Handle CONF_LLM_HASS_API selection
             normalized = _normalize_llm_hass_api(user_input.get(CONF_LLM_HASS_API))
             if normalized is None:
                 user_input.pop(CONF_LLM_HASS_API, None)
             else:
                 user_input[CONF_LLM_HASS_API] = normalized
 
-            # Handle base URL update - move it from options to data if changed
-            base_url_changed = False
-            if CONF_BASE_URL in user_input:
-                base_url = user_input.pop(CONF_BASE_URL).strip()
-                # Validate URL is not empty
-                if not base_url:
-                    errors[CONF_BASE_URL] = "url_required"
-                else:
-                    # Normalize URL (ensure it ends with /v1 or similar, or let user specify full path)
-                    if base_url != config_entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL):
-                        base_url_changed = True
-                        # Update the config entry data
-                        new_data = {**config_entry.data, CONF_BASE_URL: base_url}
-                        self.hass.config_entries.async_update_entry(config_entry, data=new_data)
-
             if not errors:
                 updated_options = {**config_entry.options, **user_input}
-                result = self.async_create_entry(title="", data=updated_options)
+                return self.async_create_entry(title="", data=updated_options)
 
-                # Connection change: recreate OpenAI client (models.list probe in setup)
-                if base_url_changed:
-                    LOGGER.debug(
-                        "[Debug config_flow]: base_url changed, scheduling config entry reload"
-                    )
-                    self.hass.async_create_task(
-                        self.hass.config_entries.async_reload(config_entry.entry_id)
-                    )
-
-                return result
-
-        schema = deepseek_config_option_schema(
-            self.hass,
-            config_entry.options,
-            config_entry,
-        )
+        schema = deepseek_config_option_schema(self.hass, config_entry.options)
         suggested = dict(config_entry.options)
         if user_input is not None:
             suggested.update(user_input)
         return self.async_show_form(
-            step_id="assist",
+            step_id="init",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(schema), suggested
             ),
@@ -480,7 +419,6 @@ class DeepSeekOptionsFlow(OptionsFlow):
 def deepseek_config_option_schema(
     hass: HomeAssistant,
     options: dict[str, Any] | MappingProxyType[str, Any],
-    config_entry: ConfigEntry | None = None,
 ) -> VolDictType:
     """Return a schema for DeepSeek completion options.
 
@@ -493,24 +431,12 @@ def deepseek_config_option_schema(
         for api in llm.async_get_apis(hass)
     ]
 
-    # Get base URL from config entry data if available, otherwise from options or default
-    base_url = DEEPSEEK_API_BASE_URL
-    if config_entry:
-        base_url = config_entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL)
-    elif CONF_BASE_URL in options:
-        base_url = options[CONF_BASE_URL]
-
     reasoning_effort_options = [
         SelectOptionDict(label=value, value=value)
         for value, _ in REASONING_EFFORT_SELECT
     ]
 
     schema: VolDictType = {
-        vol.Optional(
-            CONF_BASE_URL,
-            description={"suggested_value": base_url},
-            default=base_url,
-        ): str,
         vol.Optional(
             CONF_PROMPT,
             description={

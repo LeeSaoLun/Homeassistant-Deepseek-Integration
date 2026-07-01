@@ -90,17 +90,8 @@
         "step": {
             "init": {
                 "title": "DeepSeek-Optionen",
-                "description": "Wähle, was du ändern möchtest.",
-                "menu_options": {
-                    "assist": "Assist- und Modell-Einstellungen",
-                    "reconfigure": "API-Schlüssel & Basis-URL"
-                }
-            },
-            "assist": {
-                "title": "DeepSeek-Optionen",
-                "description": "DeepSeek V4 nutzt ein Modell für Chat und Reasoning. Bei aktivem Reasoning sendet die API Denken (extra_body) und Reasoning-Aufwand; Temperatur und Top-P werden ignoriert. Bei ausgeschaltetem Reasoning gelten Temperatur und Top-P. Alle Felder bleiben sichtbar, damit du umschalten kannst ohne den Dialog neu zu öffnen. Legacy-Modell-IDs funktionieren bis 2026-07-24.",
+                "description": "Assist, Modell und API-Verhalten. API-Schlüssel oder Basis-URL änderst du über das Integrationsmenü (⋮ → Neu konfigurieren).",
                 "data": {
-                    "base_url": "API-Basis-URL",
                     "prompt": "System-Prompt",
                     "llm_hass_api": "Home-Assistant-API",
                     "chat_model": "Modell",
@@ -112,18 +103,12 @@
                     "reasoning_effort": "Reasoning-Aufwand"
                 },
                 "data_description": {
-                    "llm_hass_api": "Keine Auswahl = keine Gerätesteuerung"
-                }
-            },
-            "reconfigure": {
-                "title": "DeepSeek neu konfigurieren",
-                "description": "API-Schlüssel oder Basis-URL ändern. Assist- und Modell-Einstellungen bleiben unverändert.",
-                "data": {
-                    "api_key": "API-Schlüssel",
-                    "base_url": "API-Basis-URL"
-                },
-                "data_description": {
-                    "api_key": "API-Schlüssel von platform.deepseek.com"
+                    "llm_hass_api": "Keine Auswahl = keine Gerätesteuerung",
+                    "thinking_enabled": "Wenn aktiv, nutzt die API Reasoning-Aufwand; Temperatur und Top-P werden ignoriert.",
+                    "reasoning_effort": "Nur wirksam, wenn Reasoning aktiv ist.",
+                    "temperature": "Nur wirksam, wenn Reasoning aus ist.",
+                    "top_p": "Nur wirksam, wenn Reasoning aus ist.",
+                    "chat_model": "Legacy-IDs deepseek-chat und deepseek-reasoner funktionieren bis 2026-07-24."
                 }
             }
         }

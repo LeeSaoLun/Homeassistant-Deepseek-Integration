@@ -90,17 +90,8 @@
         "step": {
             "init": {
                 "title": "DeepSeek Options",
-                "description": "Choose what you want to change.",
-                "menu_options": {
-                    "assist": "Assist & model settings",
-                    "reconfigure": "API key & base URL"
-                }
-            },
-            "assist": {
-                "title": "DeepSeek Options",
-                "description": "DeepSeek V4 uses one model for chat and reasoning. With reasoning on, the API sends thinking (extra_body) and reasoning effort; temperature and top_p are ignored. With reasoning off, temperature and top_p apply. All fields stay in this form so you can switch without reopening. Legacy model IDs work until 2026-07-24.",
+                "description": "Assist, model, and API behaviour. To change your API key or base URL, use the integration card menu (⋮ → Reconfigure).",
                 "data": {
-                    "base_url": "API Base URL",
                     "prompt": "System Prompt",
                     "llm_hass_api": "Home Assistant API",
                     "chat_model": "Model",
@@ -112,18 +103,12 @@
                     "reasoning_effort": "Reasoning effort"
                 },
                 "data_description": {
-                    "llm_hass_api": "No selection = no device control"
-                }
-            },
-            "reconfigure": {
-                "title": "Reconfigure DeepSeek",
-                "description": "Update your API key or base URL. Assist and model settings stay unchanged.",
-                "data": {
-                    "api_key": "API Key",
-                    "base_url": "API Base URL"
-                },
-                "data_description": {
-                    "api_key": "API key from platform.deepseek.com"
+                    "llm_hass_api": "No selection = no device control",
+                    "thinking_enabled": "When on, the API uses reasoning effort; temperature and top_p are ignored.",
+                    "reasoning_effort": "Only used when reasoning is enabled.",
+                    "temperature": "Only used when reasoning is disabled.",
+                    "top_p": "Only used when reasoning is disabled.",
+                    "chat_model": "Legacy IDs deepseek-chat and deepseek-reasoner work until 2026-07-24."
                 }
             }
         }
