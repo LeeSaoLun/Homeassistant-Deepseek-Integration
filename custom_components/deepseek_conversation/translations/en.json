@@ -162,7 +162,7 @@
     "services": {
         "generate_content": {
             "name": "Generate content",
-            "description": "Send a prompt to DeepSeek and return the model reply. Optional per-call overrides for model, temperature, thinking, max_tokens, and JSON response format.",
+            "description": "Send a prompt to DeepSeek and return the model reply. Optional per-call overrides for model, temperature, thinking, max_tokens, and JSON response format. When reasoning is enabled, the response also includes a `reasoning` field with the model's thinking text.",
             "fields": {
                 "config_entry": {
                     "name": "Integration entry",

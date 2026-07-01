@@ -162,7 +162,7 @@
     "services": {
         "generate_content": {
             "name": "Générer du contenu",
-            "description": "Envoie une invite à DeepSeek et renvoie la réponse. Overrides optionnels par appel : modèle, température, raisonnement, max_tokens et format JSON.",
+            "description": "Envoie une invite à DeepSeek et renvoie la réponse. Overrides optionnels par appel : modèle, température, raisonnement, max_tokens et format JSON. Si le raisonnement est activé, la réponse inclut aussi un champ `reasoning` avec le texte de réflexion du modèle.",
             "fields": {
                 "config_entry": {
                     "name": "Entrée d’intégration",

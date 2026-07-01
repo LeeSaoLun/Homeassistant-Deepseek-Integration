@@ -36,7 +36,7 @@ When **reasoning is on**, the API uses reasoning effort (temperature/top_p are i
 | Action | Use when |
 |--------|----------|
 | [`conversation.process`](https://www.home-assistant.io/integrations/conversation/) | Natural language + tools like Assist; uses your integration options and system prompt |
-| `deepseek_conversation.generate_content` | Simple prompt → text response; returns `text` and `usage` (tokens) |
+| `deepseek_conversation.generate_content` | Simple prompt → text response; returns `text`, `usage` (tokens), and `reasoning` when thinking is enabled |
 
 Example (`generate_content`):
 

@@ -218,3 +218,22 @@ def build_generate_content_completion_args(
         response_format=response_format,
     )
     return model, args
+
+
+def effective_thinking_enabled_for_generate_content(
+    entry_options: Mapping[str, Any],
+    service_data: Mapping[str, Any],
+) -> bool:
+    """Resolve whether reasoning is active for a ``generate_content`` call."""
+    if CONF_THINKING_ENABLED in service_data:
+        return bool(service_data[CONF_THINKING_ENABLED])
+    return bool(entry_options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED))
+
+
+def reasoning_text_from_chat_message(message: Any) -> str:
+    """Return DeepSeek reasoning text from a chat completion message object."""
+    for attr in ("reasoning_content", "reasoning"):
+        value = getattr(message, attr, None)
+        if isinstance(value, str):
+            return value
+    return ""

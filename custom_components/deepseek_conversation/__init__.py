@@ -45,8 +45,10 @@ from .const import (
     DEFAULT_SYSTEM_PROMPT,
     DEEPSEEK_API_BASE_URL,
     DOMAIN,
+    effective_thinking_enabled_for_generate_content,
     LOGGER,
     MAX_TOKENS_UPPER_BOUND,
+    reasoning_text_from_chat_message,
     RESPONSE_FORMAT_JSON_OBJECT,
 )
 from .debug import async_run_debug_suite
@@ -128,6 +130,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         usage_payload: dict[str, int] | None = None
         response_text = ""
+        thinking_on = effective_thinking_enabled_for_generate_content(
+            entry.options, call.data
+        )
         try:
             model, model_args = build_generate_content_completion_args(
                 entry_options=entry.options,
@@ -135,8 +140,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 service_data=call.data,
             )
             LOGGER.debug(
-                "[Debug generate_content]: model=%s overrides=%s",
+                "[Debug generate_content]: model=%s thinking=%s overrides=%s",
                 model,
+                thinking_on,
                 {
                     k: call.data[k]
                     for k in (
@@ -150,7 +156,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 },
             )
             response = await client.chat.completions.create(**model_args)
-            response_text = response.choices[0].message.content or ""
+            message = response.choices[0].message
+            response_text = message.content or ""
             if (parsed := completion_usage_from_api(response.usage)) is not None:
                 runtime.usage.record(parsed, source="generate_content")
                 usage_payload = runtime.usage.usage_as_dict(parsed)
@@ -171,6 +178,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise HomeAssistantError(f"Error preparing input: {err}") from err
 
         result: dict[str, object] = {"text": response_text}
+        if thinking_on:
+            reasoning_text = reasoning_text_from_chat_message(message)
+            result["reasoning"] = reasoning_text
+            LOGGER.debug(
+                "[Debug generate_content]: reasoning chars=%d",
+                len(reasoning_text),
+            )
         if usage_payload is not None:
             result["usage"] = usage_payload
         return result

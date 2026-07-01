@@ -162,7 +162,7 @@
     "services": {
         "generate_content": {
             "name": "Inhalt generieren",
-            "description": "Sendet einen Prompt an DeepSeek und gibt die Antwort zurück. Optionale Overrides pro Aufruf für Modell, Temperatur, Reasoning, max_tokens und JSON-Antwortformat.",
+            "description": "Sendet einen Prompt an DeepSeek und gibt die Antwort zurück. Optionale Overrides pro Aufruf für Modell, Temperatur, Reasoning, max_tokens und JSON-Antwortformat. Bei aktivem Reasoning enthält die Antwort zusätzlich ein `reasoning`-Feld mit dem Denktext des Modells.",
             "fields": {
                 "config_entry": {
                     "name": "Integrations-Eintrag",

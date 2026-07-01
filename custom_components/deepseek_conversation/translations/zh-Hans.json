@@ -162,7 +162,7 @@
     "services": {
         "generate_content": {
             "name": "生成内容",
-            "description": "向 DeepSeek 发送提示并返回模型回复。可按单次调用覆盖模型、温度、推理、max_tokens 与 JSON 响应格式。",
+            "description": "向 DeepSeek 发送提示并返回模型回复。可按单次调用覆盖模型、温度、推理、max_tokens 与 JSON 响应格式。启用推理时，响应除 `text` 与 `usage` 外还包含 `reasoning` 字段（模型的思考文本）。",
             "fields": {
                 "config_entry": {
                     "name": "集成条目",
