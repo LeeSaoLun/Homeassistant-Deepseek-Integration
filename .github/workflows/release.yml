@@ -143,16 +143,7 @@ jobs:
 
       - name: Build HACS release zip
         if: steps.changed.outputs.changed == 'true' && steps.tagcheck.outputs.exists != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f deepseek_conversation.zip
-          cd custom_components
-          zip -r ../deepseek_conversation.zip deepseek_conversation \
-            -x "*.pyc" -x "*__pycache__/*"
-          cd ..
-          echo "[Debug release]: deepseek_conversation.zip ($(wc -c < deepseek_conversation.zip) bytes)"
-          unzip -l deepseek_conversation.zip | head -15
+        run: python scripts/build_hacs_zip.py
 
       - name: Create Git tag
         if: steps.changed.outputs.changed == 'true' && steps.tagcheck.outputs.exists != 'true'
