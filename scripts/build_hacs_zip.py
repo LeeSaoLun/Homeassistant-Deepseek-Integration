@@ -29,6 +29,27 @@ def main() -> None:
             count += 1
 
     print(f"[Debug build_hacs_zip]: wrote {OUT.name} ({OUT.stat().st_size} bytes, {count} files)")
+    _validate_zip(OUT)
+
+
+def _validate_zip(path: Path) -> None:
+    """Fail fast if the archive does not match HACS zip_release expectations."""
+    required = (
+        "deepseek_conversation/manifest.json",
+        "deepseek_conversation/__init__.py",
+    )
+    with zipfile.ZipFile(path) as zf:
+        names = zf.namelist()
+        roots = {n.split("/")[0] for n in names if "/" in n}
+        if roots != {"deepseek_conversation"}:
+            raise SystemExit(
+                f"Invalid zip layout: expected only deepseek_conversation/ at root, got {roots}"
+            )
+        missing = [entry for entry in required if entry not in names]
+        if missing:
+            raise SystemExit(f"Zip missing required paths: {missing}")
+        if any(n.startswith("custom_components/") for n in names):
+            raise SystemExit("Zip must not include custom_components/ prefix (content_in_root: false)")
 
 
 if __name__ == "__main__":
