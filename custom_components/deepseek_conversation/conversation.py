@@ -512,10 +512,21 @@ class DeepSeekConversationEntity(
             model="DeepSeek API",
             entry_type=dr.DeviceEntryType.SERVICE,
         )
-        if self.entry.options.get(CONF_LLM_HASS_API):
+        self._sync_entity_attributes_from_entry(entry)
+
+    def _sync_entity_attributes_from_entry(self, entry: DeepSeekConfigEntry) -> None:
+        """Refresh entity flags from options without a config-entry reload.
+
+        Assist reads prompt/model/temperature from ``entry.options`` each turn.
+        Reload is only needed for connection data (base_url, API key); see
+        config_flow.py (base_url) and reauth (API key).
+        """
+        if entry.options.get(CONF_LLM_HASS_API):
             self._attr_supported_features = (
                 conversation.ConversationEntityFeature.CONTROL
             )
+        else:
+            self._attr_supported_features = conversation.ConversationEntityFeature(0)
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -769,6 +780,12 @@ class DeepSeekConversationEntity(
     async def _async_entry_update_listener(
         self, hass: HomeAssistant, entry: DeepSeekConfigEntry
     ) -> None:
-        """Handle options update."""
-        await hass.config_entries.async_reload(entry.entry_id)
+        """Apply option changes in memory without reloading the config entry."""
+        self.entry = entry
+        self._sync_entity_attributes_from_entry(entry)
+        self.async_write_ha_state()
+        LOGGER.debug(
+            "[Debug conversation]: Options applied in-memory (no reload); "
+            "base_url/API key changes trigger reload via config_flow/reauth"
+        )
 

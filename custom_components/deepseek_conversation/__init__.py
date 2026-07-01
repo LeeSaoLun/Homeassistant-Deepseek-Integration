@@ -295,9 +295,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
 async def async_unload_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> bool:
     """Unload DeepSeek and close the underlying OpenAI client.
 
-    The OpenAI ``AsyncClient`` owns an httpx connection pool; HA recreates the
-    entry on every options-update via ``async_reload``, so without an explicit
-    ``close()`` the pool would leak per reload.
+    The OpenAI ``AsyncClient`` owns an httpx connection pool; reload runs only
+    for connection changes (base_url, API key via reauth), so ``close()`` avoids
+    leaking the pool on those reloads.
     """
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     client: openai.AsyncClient | None = getattr(entry, "runtime_data", None)

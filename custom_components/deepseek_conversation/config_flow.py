@@ -309,13 +309,16 @@ class DeepSeekOptionsFlow(OptionsFlow):
                 # Merge new user input with existing options before creating entry
                 updated_options = {**config_entry.options, **user_input}
                 result = self.async_create_entry(title="", data=updated_options)
-                
-                # Reload the entry if base URL was changed to apply the new URL
+
+                # Connection change: recreate OpenAI client (models.list probe in setup)
                 if base_url_changed:
+                    LOGGER.debug(
+                        "[Debug config_flow]: base_url changed, scheduling config entry reload"
+                    )
                     self.hass.async_create_task(
                         self.hass.config_entries.async_reload(config_entry.entry_id)
                     )
-                
+
                 return result
 
         # Pass options from config_entry to the schema function
