@@ -362,47 +362,6 @@ def _yield_assistant_text_deltas(
     return deltas, role_emitted
 
 
-def _prime_assist_ui_after_tool_results(chat_log: conversation.ChatLog) -> None:
-    """Prepare stock ``ha-assist-chat`` for the next stream after tool results.
-
-    Assist sets ``currentDeltaRole`` to ``tool_result`` per tool-result delta.
-    After parallel tools the role stays on ``tool_result`` until reset; follow-up
-    thinking/content deltas are ignored unless ``currentDeltaRole === "assistant"``.
-
-    Call only after tool results landed in ``chat_log.content``. Listener-only.
-    """
-    if chat_log.delta_listener is None:
-        return
-    LOGGER.debug(
-        "[Debug conversation]: priming Assist UI after tool results (listener only)"
-    )
-    chat_log.delta_listener(chat_log, {"role": "assistant"})
-    chat_log.delta_listener(chat_log, {"content": "\u200b"})
-    chat_log.delta_listener(chat_log, {"thinking_content": "\u200b"})
-
-
-def _publish_assist_ui_final_speech(
-    chat_log: conversation.ChatLog, speech_text: str
-) -> None:
-    """Emit the final answer on the Assist delta channel.
-
-    ``ha-assist-chat`` ignores thinking/content when ``currentDeltaRole`` is still
-    ``tool_result``. One combined ``role`` + ``content`` event resets the role and
-    updates the bubble in a single ``intent-progress`` frame (in addition to
-    ``intent-end``).
-    """
-    if chat_log.delta_listener is None or not speech_text:
-        return
-    LOGGER.debug(
-        "[Debug conversation]: publishing final speech to Assist UI (%d chars)",
-        len(speech_text),
-    )
-    chat_log.delta_listener(
-        chat_log,
-        {"role": "assistant", "content": speech_text},
-    )
-
-
 def _stream_delta_text(delta: Any, field: str) -> str | None:
     """Read a streamed text field from ChoiceDelta.
 
@@ -443,24 +402,18 @@ async def _transform_stream(
     result: AsyncStream[ChatCompletionChunk],
     *,
     thinking_enabled: bool = False,
-    emit_start_role: bool = True,
     usage_events: list[CompletionUsage] | None = None,
 ) -> AsyncGenerator[conversation.AssistantContentDeltaDict, None]:
     """Transform a DeepSeek delta stream (ChatCompletionChunk) into HA format.
 
-    ``emit_start_role=True`` (first API round): standalone ``{"role": "assistant"}``
-    like Google Gemini. ``emit_start_role=False`` (after tools): the first
-    thinking/content chunk carries ``role`` in the same dict so stock Assist UI
-    resets ``currentDeltaRole`` from ``tool_result`` in one event.
+    One stream per API round. The first chunk that carries text or a tool call
+    also carries ``role`` so Home Assistant starts a fresh assistant message
+    (same pattern as the stock Ollama integration); ending the stream lets HA
+    finalize the message and run any pending tool calls.
     """
     current_tool_calls: list[dict[str, Any]] = []
     current_tool_call_args_buffer: dict[int, str] = {}
-    role: Literal["assistant"] | None = None
     role_emitted = False
-    if emit_start_role:
-        LOGGER.debug("[Debug conversation]: yielding stream delta: {'role': 'assistant'}")
-        yield {"role": "assistant"}
-        role_emitted = True
     async for chunk in result:
         parsed_usage = completion_usage_from_api(getattr(chunk, "usage", None))
         if parsed_usage is not None:
@@ -484,8 +437,6 @@ async def _transform_stream(
         if delta is not None:
             if delta.role and delta.role != "assistant":
                 LOGGER.warning("Unexpected role in stream delta: %s", delta.role)
-            elif delta.role == "assistant":
-                role = delta.role
 
             reasoning_delta = _stream_delta_text(delta, "reasoning_content")
             content_delta = _stream_delta_text(delta, "content")
@@ -579,78 +530,6 @@ async def _transform_stream(
                  raise HomeAssistantError("content_filter")
             else:
                  raise HomeAssistantError(f"finish_reason_{finish_reason}")
-
-
-async def _deepseek_tool_iteration_stream(
-    chat_log: conversation.ChatLog,
-    client: openai.AsyncClient,
-    *,
-    model: str,
-    options: dict[str, Any],
-    thinking_on: bool,
-    tools: list[dict[str, Any]] | None,
-    tool_choice: str | dict[str, Any] | None,
-    initial_messages: list[dict[str, Any]],
-    usage_sink: list[CompletionUsage],
-) -> AsyncGenerator[conversation.AssistantContentDeltaDict, None]:
-    """One continuous Assist stream across all tool/API rounds.
-
-    A single ``async_add_delta_content_stream`` call keeps ``chat_log`` and the
-    Assist pipeline on one delta sequence. Follow-up rounds use
-    ``emit_start_role=False`` so the first post-tool text chunk carries ``role``.
-    """
-    current_messages = list(initial_messages)
-    for iteration in range(MAX_TOOL_ITERATIONS):
-        if iteration > 0:
-            _prime_assist_ui_after_tool_results(chat_log)
-
-        model_args = build_chat_completion_args(
-            model=model,
-            messages=current_messages,
-            options=options,
-            stream=True,
-            tools=tools,
-            tool_choice=tool_choice,
-        )
-        LOGGER.debug("Model arguments for DeepSeek: %s", model_args)
-        result = await client.chat.completions.create(**model_args)
-
-        iteration_usage: list[CompletionUsage] = []
-        async for delta in _transform_stream(
-            chat_log,
-            result,
-            thinking_enabled=bool(thinking_on),
-            emit_start_role=iteration == 0,
-            usage_events=iteration_usage,
-        ):
-            yield delta
-        usage_sink.extend(iteration_usage)
-
-        # Tool calls sit in the chat_log stream buffer until the next ``role``
-        # delta. Without this boundary, ``unresponded_tool_results`` is still
-        # false while tools have not been executed yet.
-        LOGGER.debug(
-            "[Debug conversation]: yielding stream delta: {'role': 'assistant'} (tool boundary)"
-        )
-        yield {"role": "assistant"}
-
-        if not chat_log.unresponded_tool_results:
-            LOGGER.debug("Iteration %d finished. No tool calls.", iteration + 1)
-            return
-
-        LOGGER.debug(
-            "Iteration %d finished. Tool calls in flight, preparing next iteration.",
-            iteration + 1,
-        )
-        current_messages = _convert_content_to_messages(
-            chat_log.content, model=model, thinking_enabled=thinking_on
-        )
-    else:
-        LOGGER.warning(
-            "Max tool iterations reached for conversation %s",
-            chat_log.conversation_id,
-        )
-        raise HomeAssistantError("max_tool_iterations")
 
 
 class DeepSeekConversationEntity(
@@ -808,22 +687,48 @@ class DeepSeekConversationEntity(
 
         max_iterations_reached = False
         all_usage: list[CompletionUsage] = []
+        current_messages = initial_messages
         try:
-            async for _ in chat_log.async_add_delta_content_stream(
-                user_input.agent_id,
-                _deepseek_tool_iteration_stream(
-                    chat_log,
-                    client,
+            # One API round per iteration. A fresh ``async_add_delta_content_stream``
+            # per round mirrors the stock Ollama/OpenAI integrations: the stream
+            # ending finalizes the assistant message and runs any tool calls, and
+            # each round's first delta carries ``role`` so the Assist UI starts a
+            # clean assistant message. See CHANGELOG (Assist follow-up display).
+            for _iteration in range(MAX_TOOL_ITERATIONS):
+                model_args = build_chat_completion_args(
                     model=model,
+                    messages=current_messages,
                     options=options,
-                    thinking_on=thinking_on,
+                    stream=True,
                     tools=tools,
                     tool_choice=tool_choice,
-                    initial_messages=initial_messages,
-                    usage_sink=all_usage,
-                ),
-            ):
-                pass
+                )
+                LOGGER.debug("Model arguments for DeepSeek: %s", model_args)
+                result = await client.chat.completions.create(**model_args)
+                async for _content in chat_log.async_add_delta_content_stream(
+                    user_input.agent_id,
+                    _transform_stream(
+                        chat_log,
+                        result,
+                        thinking_enabled=bool(thinking_on),
+                        usage_events=all_usage,
+                    ),
+                ):
+                    pass
+
+                if not chat_log.unresponded_tool_results:
+                    LOGGER.debug("Iteration %d finished. No tool calls.", _iteration + 1)
+                    break
+
+                LOGGER.debug(
+                    "Iteration %d finished. Tool results in, preparing next round.",
+                    _iteration + 1,
+                )
+                current_messages = _convert_content_to_messages(
+                    chat_log.content, model=model, thinking_enabled=thinking_on
+                )
+            else:
+                max_iterations_reached = True
             for usage in all_usage:
                 runtime.usage.record(usage, source="assist")
         except openai.AuthenticationError as err:
@@ -864,21 +769,18 @@ class DeepSeekConversationEntity(
                 code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
             )
         except HomeAssistantError as err:
-            if str(err) == "max_tool_iterations":
-                max_iterations_reached = True
-            else:
-                LOGGER.error("Error processing DeepSeek stream: %s", err)
-                error_msg = str(err)
-                if error_msg == "max_token":
-                    error_msg = "Response truncated by token limit"
-                elif error_msg == "content_filter":
-                    error_msg = "Response blocked by content filter"
-                return _intent_error_result(
-                    language=user_input.language,
-                    conversation_id=chat_log.conversation_id,
-                    message=error_msg,
-                    code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
-                )
+            LOGGER.error("Error processing DeepSeek stream: %s", err)
+            error_msg = str(err)
+            if error_msg == "max_token":
+                error_msg = "Response truncated by token limit"
+            elif error_msg == "content_filter":
+                error_msg = "Response blocked by content filter"
+            return _intent_error_result(
+                language=user_input.language,
+                conversation_id=chat_log.conversation_id,
+                message=error_msg,
+                code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+            )
 
         if max_iterations_reached:
             LOGGER.warning(
@@ -913,7 +815,6 @@ class DeepSeekConversationEntity(
         if options.get(CONF_STRIP_MARKDOWN, DEFAULT_STRIP_MARKDOWN):
             speech_text = _strip_markdown(speech_text)
 
-        _publish_assist_ui_final_speech(chat_log, speech_text)
         intent_response.async_set_speech(speech_text)
 
         return conversation.ConversationResult(
