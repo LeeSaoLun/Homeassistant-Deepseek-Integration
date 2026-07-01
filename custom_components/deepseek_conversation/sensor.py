@@ -30,7 +30,6 @@ class DeepSeekUsageCounterSensor(RestoreSensor, SensorEntity):
         *,
         unit: str,
         icon: str,
-        *,
         reset_on_add: bool = False,
     ) -> None:
         self._entry = entry
