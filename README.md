@@ -3,61 +3,71 @@
 
 # DeepSeek Conversation
 
-Home Assistant integration for [DeepSeek](https://api-docs.deepseek.com/) as an **Assist conversation agent** (OpenAI-compatible API).
+Connect [DeepSeek](https://api-docs.deepseek.com/) to Home Assistant as a **conversation agent** for Assist (voice and chat). The integration speaks the OpenAI-compatible Chat Completions API, so you can also point it at a compatible proxy via a custom base URL.
 
 Community project — not part of Home Assistant Core.
 
-## What you get
-
-- **Assist** (voice and text) with streaming, optional **Home Assistant tools**, and **reasoning** toggle
-- **Vision** (optional): image attachments in Assist and paths in `generate_content` when using a **custom** OpenAI-compatible base URL with multimodal chat. The official `api.deepseek.com` endpoint is text-only (toggle in options).
-- **Context management** (optional): trim large tool results and limit Assist history rounds
-- **Automations** via `conversation.process` (same agent as Assist) or service `deepseek_conversation.generate_content`
-- **Token sensors** per config entry (cumulative prompt, completion, total, reasoning, API requests; last request total plus prompt/completion breakdown); updated on Assist and `generate_content` calls. Reset manually via the **Reset usage** button on the integration device.
-- Models **V4 Flash** (default) and **V4 Pro**; legacy ids until 2026-07-24
-
 **Requires:** Home Assistant 2026.1+, DeepSeek API key.
+
+## What it does
+
+Use DeepSeek **V4 Flash** (default) or **V4 Pro** as the brain behind Assist: streaming replies, optional extended reasoning, and optional Home Assistant tool calls (lights, context lookups, and more when an LLM API is enabled in options).
+
+| Area | What you get |
+|------|----------------|
+| **Assist** | Pick the agent in your voice assistant settings; same config for voice and text chat |
+| **Tools** | Expose selected Home Assistant LLM APIs to the model (configurable tool loop, 1–20 iterations) |
+| **Reasoning** | Toggle thinking on/off and set effort; temperature and top_p apply only when thinking is off |
+| **Context** | Optional trimming of large tool results and limit on Assist history rounds (helps with GetLiveContext-heavy chats) |
+| **Automations** | `conversation.process` like Assist, or `deepseek_conversation.generate_content` for direct prompt → text |
+| **Usage** | Token sensors per config entry, last-request breakdown, manual **Reset usage** on the device |
+| **Credentials** | Reauth when the key is rejected; **Reconfigure** for API key or base URL without losing options |
+
+`generate_content` returns `text`, optional `reasoning`, and `usage` tokens. Per-call overrides: model, temperature, thinking, max_tokens, JSON mode.
+
+Legacy model ids (`deepseek-chat`, `deepseek-reasoner`) map to V4 until 2026-07-24.
 
 ## Install
 
-**HACS:** [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=leofleischmann&repository=Homeassistant-Deepseek-Integration&category=integration) → install → restart.
+[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=leofleischmann&repository=Homeassistant-Deepseek-Integration&category=integration)
 
-Release download count (badge above) tracks the `deepseek_conversation.zip` asset on GitHub, not the number shown inside HACS.
+HACS → install → restart Home Assistant.
 
-**Manual:** Copy `custom_components/deepseek_conversation/` into your config folder → restart.
+Release download badge counts GitHub `deepseek_conversation.zip` assets, not the number inside HACS.
+
+**Manual:** copy `custom_components/deepseek_conversation/` into `/config` → restart.
 
 ## Setup
 
 1. **Settings → Devices & services → Add integration → DeepSeek Conversation**
-2. API key (optional: base URL, model)
-3. **Configure** (gear) for Assist, model, reasoning, and tools.
+2. Enter API key (optional: custom base URL, model)
+3. Open **Configure** (gear): system prompt, model, reasoning, tools, context limits
+4. Assign the agent to your Assist pipeline / voice assistant
 
-**API key or base URL:** integration card **⋮ → Reconfigure** (not the gear icon).
-
-When **reasoning is on**, the API uses reasoning effort (temperature/top_p are ignored). When **off**, temperature and top_p apply.
+Change API key or base URL via the integration card **⋮ → Reconfigure** (not the gear).
 
 ## Automations
 
-| Action | Use when |
-|--------|----------|
-| [`conversation.process`](https://www.home-assistant.io/integrations/conversation/) | Natural language + tools like Assist; uses your integration options and system prompt |
-| `deepseek_conversation.generate_content` | Simple prompt → text response; returns `text`, `usage` (tokens), and `reasoning` when thinking is enabled |
-
-Example (`generate_content`):
-
 ```yaml
+# Like Assist: natural language, tools, integration options
+action: conversation.process
+data:
+  agent_id: conversation.deepseek
+  text: "Turn off the living room lights."
+
+# Scripted call: prompt in, text (+ usage, optional reasoning) out
 action: deepseek_conversation.generate_content
 data:
   config_entry: <your config entry id>
-  prompt: "Summarise the weather for today in one sentence."
+  prompt: "Summarise today's weather in one sentence."
 response_variable: deepseek
 ```
 
-Token sensors on the integration device update after each API call (`assist` or `generate_content`). **`run_debug`** does not count toward usage sensors. Use the **Reset usage** button on the device to zero all counters.
+Sample automations: [`sample_automations/`](sample_automations/).
 
 ## Debug
 
-Service `deepseek_conversation.run_debug` — extended API diagnostics, writes `/config/deepseek_conversation_debug_report.txt`. Many API calls; run manually only.
+`deepseek_conversation.run_debug` writes `/config/deepseek_conversation_debug_report.txt`. Many API calls — use manually only. Does not update usage sensors.
 
 ## Links
 
