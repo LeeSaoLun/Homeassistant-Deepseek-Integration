@@ -75,22 +75,19 @@ def model_supports_vision(model: str) -> bool:
     return "reasoner" not in m
 
 
-def content_list_has_attachments(
+def latest_user_attachments(
     content_list: list[conversation.Content],
-) -> bool:
-    """True when any user turn in the chat log carries attachments."""
-    return count_attachments_in_content_list(content_list) > 0
+) -> list[conversation.Attachment] | None:
+    """Return image attachments from the most recent user turn, if any.
 
-
-def count_attachments_in_content_list(
-    content_list: list[conversation.Content],
-) -> int:
-    """Count image attachments across all user turns in a chat log."""
-    total = 0
-    for content in content_list:
-        if isinstance(content, conversation.UserContent) and content.attachments:
-            total += len(content.attachments)
-    return total
+    Only the current request's attachments matter: earlier attachments are
+    already encoded into prior API rounds, so scanning the whole history would
+    re-encode them every turn and could block a later text-only follow-up turn.
+    """
+    for content in reversed(content_list):
+        if isinstance(content, conversation.UserContent):
+            return content.attachments or None
+    return None
 
 
 def _normalize_mime_type(file_path: Path, mime_type: str | None) -> str:

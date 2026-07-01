@@ -42,9 +42,8 @@ from .types import DeepSeekConfigEntry
 from .usage_metrics import CompletionUsage, completion_usage_from_api
 from .vision import (
     async_user_message_content,
-    content_list_has_attachments,
     conversation_entity_features_for_options,
-    count_attachments_in_content_list,
+    latest_user_attachments,
     model_supports_vision,
     vision_enabled_in_options,
 )
@@ -251,12 +250,11 @@ def _convert_content_to_messages(
     *,
     model: str,
     thinking_enabled: bool,
-    user_contents: dict[int, str | list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     """Convert conversation history to DeepSeek API message format.
 
-    ``user_contents`` maps ``id(content)`` -> pre-built user ``content`` when
-    attachments require async encoding (see ``_async_convert_content_to_messages``).
+    Text only: image attachments are applied separately to the last user message
+    (see ``_apply_attachments_to_last_user_message``) so they are encoded once.
     """
     messages: list[dict[str, Any]] = []
 
@@ -272,10 +270,7 @@ def _convert_content_to_messages(
 
         if isinstance(content, conversation.UserContent):
             role = "user"
-            if user_contents is not None and id(content) in user_contents:
-                message_content = user_contents[id(content)]
-            else:
-                message_content = content.content
+            message_content = content.content
         elif isinstance(content, conversation.AssistantContent):
             role = "assistant"
             message_content = content.content
@@ -319,35 +314,33 @@ def _convert_content_to_messages(
     return messages
 
 
-async def _async_convert_content_to_messages(
+async def _apply_attachments_to_last_user_message(
     hass: HomeAssistant,
     content_list: list[conversation.Content],
-    *,
-    model: str,
-    thinking_enabled: bool,
-) -> list[dict[str, Any]]:
-    """Convert chat log content, encoding image attachments for the DeepSeek API."""
-    attachment_count = count_attachments_in_content_list(content_list)
-    if attachment_count:
+    messages: list[dict[str, Any]],
+) -> None:
+    """Encode the current turn's image attachments into the last user message.
+
+    Mirrors the stock OpenAI/Ollama integrations: attachments are encoded once
+    here and reused across all tool rounds (``messages`` is extended, not rebuilt,
+    in ``_async_handle_message``) instead of re-read and re-encoded every round.
+    Raises ``HomeAssistantError`` if a file cannot be read as an image.
+    """
+    attachments = latest_user_attachments(content_list)
+    if not attachments:
+        return
+    for message in reversed(messages):
+        if message.get("role") != "user":
+            continue
+        text = message.get("content")
+        message["content"] = await async_user_message_content(
+            hass, text if isinstance(text, str) else "", attachments
+        )
         LOGGER.debug(
-            "[Debug vision]: preparing %d attachment(s) for API messages",
-            attachment_count,
+            "[Debug vision]: encoded %d attachment(s) into the last user message",
+            len(attachments),
         )
-    user_contents: dict[int, str | list[dict[str, Any]]] = {}
-    for content in content_list:
-        if not isinstance(content, conversation.UserContent):
-            continue
-        if not content.attachments:
-            continue
-        user_contents[id(content)] = await async_user_message_content(
-            hass, content.content, content.attachments
-        )
-    return _convert_content_to_messages(
-        content_list,
-        model=model,
-        thinking_enabled=thinking_enabled,
-        user_contents=user_contents or None,
-    )
+        return
 
 
 def _final_speech_from_chat_log(
@@ -722,7 +715,8 @@ class DeepSeekConversationEntity(
 
         thinking_on = options.get(CONF_THINKING_ENABLED, DEFAULT_THINKING_ENABLED)
 
-        if content_list_has_attachments(chat_log.content):
+        attachments = latest_user_attachments(chat_log.content)
+        if attachments:
             if not vision_enabled_in_options(options):
                 return _intent_error_result(
                     language=user_input.language,
@@ -744,12 +738,12 @@ class DeepSeekConversationEntity(
                     code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
                 )
 
+        initial_messages = _convert_content_to_messages(
+            chat_log.content, model=model, thinking_enabled=thinking_on
+        )
         try:
-            initial_messages = await _async_convert_content_to_messages(
-                self.hass,
-                chat_log.content,
-                model=model,
-                thinking_enabled=thinking_on,
+            await _apply_attachments_to_last_user_message(
+                self.hass, chat_log.content, initial_messages
             )
         except HomeAssistantError as err:
             LOGGER.error("[Debug vision]: attachment handling failed: %s", err)
@@ -773,17 +767,19 @@ class DeepSeekConversationEntity(
         )
         max_iterations_reached = False
         all_usage: list[CompletionUsage] = []
-        current_messages = initial_messages
+        messages = initial_messages
         try:
-            # One API round per iteration. A fresh ``async_add_delta_content_stream``
-            # per round mirrors the stock Ollama/OpenAI integrations: the stream
-            # ending finalizes the assistant message and runs any tool calls, and
-            # each round's first delta carries ``role`` so the Assist UI starts a
-            # clean assistant message. See CHANGELOG (Assist follow-up display).
+            # One API round per iteration, mirroring the stock Ollama/OpenAI
+            # integrations: a fresh ``async_add_delta_content_stream`` per round
+            # (the stream ending finalizes the assistant message and runs any tool
+            # calls), each round's first delta carries ``role`` so the Assist UI
+            # starts a clean message, and ``messages`` is extended with the newly
+            # added content instead of rebuilt — so image attachments stay encoded
+            # once (see ``_apply_attachments_to_last_user_message``).
             for _iteration in range(max_tool_iterations):
                 model_args = build_chat_completion_args(
                     model=model,
-                    messages=current_messages,
+                    messages=messages,
                     options=options,
                     stream=True,
                     tools=tools,
@@ -791,30 +787,31 @@ class DeepSeekConversationEntity(
                 )
                 LOGGER.debug("Model arguments for DeepSeek: %s", model_args)
                 result = await client.chat.completions.create(**model_args)
-                async for _content in chat_log.async_add_delta_content_stream(
-                    user_input.agent_id,
-                    _transform_stream(
-                        chat_log,
-                        result,
-                        thinking_enabled=bool(thinking_on),
-                        usage_events=all_usage,
-                    ),
-                ):
-                    pass
+                new_contents = [
+                    content
+                    async for content in chat_log.async_add_delta_content_stream(
+                        user_input.agent_id,
+                        _transform_stream(
+                            chat_log,
+                            result,
+                            thinking_enabled=bool(thinking_on),
+                            usage_events=all_usage,
+                        ),
+                    )
+                ]
 
                 if not chat_log.unresponded_tool_results:
                     LOGGER.debug("Iteration %d finished. No tool calls.", _iteration + 1)
                     break
 
                 LOGGER.debug(
-                    "Iteration %d finished. Tool results in, preparing next round.",
+                    "Iteration %d finished. Tool results in, extending messages.",
                     _iteration + 1,
                 )
-                current_messages = await _async_convert_content_to_messages(
-                    self.hass,
-                    chat_log.content,
-                    model=model,
-                    thinking_enabled=thinking_on,
+                messages.extend(
+                    _convert_content_to_messages(
+                        new_contents, model=model, thinking_enabled=thinking_on
+                    )
                 )
             else:
                 max_iterations_reached = True
