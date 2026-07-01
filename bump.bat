@@ -15,7 +15,7 @@ if errorlevel 1 exit /b 1
 
 echo.
 echo ============================================================
-echo  CHANGELOG.md jetzt bearbeiten ^(z. B. in Cursor^).
+echo  CHANGELOG.md jetzt bearbeiten.
 echo  Wenn fertig: beliebige Taste druecken - dann commit + push dev.
 echo ============================================================
 pause
