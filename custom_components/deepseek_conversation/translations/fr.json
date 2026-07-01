@@ -113,6 +113,7 @@
                     "llm_hass_api": "API Home Assistant",
                     "chat_model": "Modèle",
                     "max_tokens": "Jetons max.",
+                    "max_tool_iterations": "Itérations d'outils max.",
                     "top_p": "Top P",
                     "temperature": "Température",
                     "thinking_enabled": "Activer le raisonnement",
@@ -125,7 +126,8 @@
                     "reasoning_effort": "Utilisé uniquement si le raisonnement est activé.",
                     "temperature": "Utilisé uniquement si le raisonnement est désactivé.",
                     "top_p": "Utilisé uniquement si le raisonnement est désactivé.",
-                    "chat_model": "Les anciens identifiants deepseek-chat et deepseek-reasoner fonctionnent jusqu’au 2026-07-24."
+                    "chat_model": "Les anciens identifiants deepseek-chat et deepseek-reasoner fonctionnent jusqu’au 2026-07-24.",
+                    "max_tool_iterations": "Nombre maximal de tours API lorsque le modèle appelle des outils Home Assistant (1–20). Chaque tour peut exécuter un ou plusieurs outils."
                 }
             }
         }

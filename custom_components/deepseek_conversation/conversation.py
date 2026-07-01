@@ -24,7 +24,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .api_errors import openai_exception_user_message
 from .const import (
     build_chat_completion_args,
+    coerce_max_tool_iterations,
     CONF_CHAT_MODEL,
+    CONF_MAX_TOOL_ITERATIONS,
     CONF_PROMPT,
     CONF_STRIP_MARKDOWN,
     CONF_THINKING_ENABLED,
@@ -34,12 +36,10 @@ from .const import (
     DOMAIN,
     LOGGER,
     RECOMMENDED_CHAT_MODEL,
+    RECOMMENDED_MAX_TOOL_ITERATIONS,
 )
 from .types import DeepSeekConfigEntry
 from .usage_metrics import CompletionUsage, completion_usage_from_api
-
-# Max number of back and forth with the LLM for tool usage
-MAX_TOOL_ITERATIONS = 10
 
 
 def _format_tool(
@@ -685,6 +685,13 @@ class DeepSeekConversationEntity(
             json.dumps(initial_messages, indent=2, cls=_HAJSONEncoder),
         )
 
+        max_tool_iterations = coerce_max_tool_iterations(
+            options.get(CONF_MAX_TOOL_ITERATIONS, RECOMMENDED_MAX_TOOL_ITERATIONS)
+        )
+        LOGGER.debug(
+            "[Debug conversation]: max_tool_iterations=%d",
+            max_tool_iterations,
+        )
         max_iterations_reached = False
         all_usage: list[CompletionUsage] = []
         current_messages = initial_messages
@@ -694,7 +701,7 @@ class DeepSeekConversationEntity(
             # ending finalizes the assistant message and runs any tool calls, and
             # each round's first delta carries ``role`` so the Assist UI starts a
             # clean assistant message. See CHANGELOG (Assist follow-up display).
-            for _iteration in range(MAX_TOOL_ITERATIONS):
+            for _iteration in range(max_tool_iterations):
                 model_args = build_chat_completion_args(
                     model=model,
                     messages=current_messages,
@@ -784,7 +791,8 @@ class DeepSeekConversationEntity(
 
         if max_iterations_reached:
             LOGGER.warning(
-                "Max tool iterations reached for conversation %s",
+                "Max tool iterations (%d) reached for conversation %s",
+                max_tool_iterations,
                 chat_log.conversation_id,
             )
             return _intent_error_result(

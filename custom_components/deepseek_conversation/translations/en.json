@@ -113,6 +113,7 @@
                     "llm_hass_api": "Home Assistant API",
                     "chat_model": "Model",
                     "max_tokens": "Max Tokens",
+                    "max_tool_iterations": "Max tool iterations",
                     "top_p": "Top P",
                     "temperature": "Temperature",
                     "thinking_enabled": "Enable reasoning",
@@ -125,7 +126,8 @@
                     "reasoning_effort": "Only used when reasoning is enabled.",
                     "temperature": "Only used when reasoning is disabled.",
                     "top_p": "Only used when reasoning is disabled.",
-                    "chat_model": "Legacy IDs deepseek-chat and deepseek-reasoner work until 2026-07-24."
+                    "chat_model": "Legacy IDs deepseek-chat and deepseek-reasoner work until 2026-07-24.",
+                    "max_tool_iterations": "Maximum API rounds when the model calls Home Assistant tools (1–20). Each round can run one or more tools."
                 }
             }
         }

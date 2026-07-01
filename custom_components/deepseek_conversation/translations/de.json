@@ -113,6 +113,7 @@
                     "llm_hass_api": "Home-Assistant-API",
                     "chat_model": "Modell",
                     "max_tokens": "Max. Tokens",
+                    "max_tool_iterations": "Max. Tool-Iterationen",
                     "top_p": "Top P",
                     "temperature": "Temperatur",
                     "thinking_enabled": "Reasoning aktivieren",
@@ -125,7 +126,8 @@
                     "reasoning_effort": "Nur wirksam, wenn Reasoning aktiv ist.",
                     "temperature": "Nur wirksam, wenn Reasoning aus ist.",
                     "top_p": "Nur wirksam, wenn Reasoning aus ist.",
-                    "chat_model": "Legacy-IDs deepseek-chat und deepseek-reasoner funktionieren bis 2026-07-24."
+                    "chat_model": "Legacy-IDs deepseek-chat und deepseek-reasoner funktionieren bis 2026-07-24.",
+                    "max_tool_iterations": "Maximale API-Runden, wenn das Modell Home-Assistant-Tools aufruft (1–20). Pro Runde können ein oder mehrere Tools laufen."
                 }
             }
         }

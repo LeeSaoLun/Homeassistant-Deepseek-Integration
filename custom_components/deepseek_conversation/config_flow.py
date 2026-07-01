@@ -36,9 +36,11 @@ from homeassistant.helpers.typing import VolDictType  # pyright: ignore[reportMi
 from .const import (
     CHAT_MODEL_OPTIONS,
     coerce_max_tokens,
+    coerce_max_tool_iterations,
     CONF_BASE_URL,
     CONF_CHAT_MODEL,
     CONF_MAX_TOKENS,
+    CONF_MAX_TOOL_ITERATIONS,
     CONF_PROMPT,
     CONF_REASONING_EFFORT,
     CONF_STRIP_MARKDOWN,
@@ -55,6 +57,8 @@ from .const import (
     REASONING_EFFORT_SELECT,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
+    RECOMMENDED_MAX_TOOL_ITERATIONS,
+    MAX_TOOL_ITERATIONS_UPPER_BOUND,
     RECOMMENDED_REASONING_EFFORT,
     RECOMMENDED_TEMPERATURE,
     RECOMMENDED_TOP_P,
@@ -138,6 +142,7 @@ DEFAULT_OPTIONS = {
     CONF_PROMPT: DEFAULT_SYSTEM_PROMPT,
     CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
     CONF_MAX_TOKENS: RECOMMENDED_MAX_TOKENS,
+    CONF_MAX_TOOL_ITERATIONS: RECOMMENDED_MAX_TOOL_ITERATIONS,
     CONF_TEMPERATURE: RECOMMENDED_TEMPERATURE,
     CONF_TOP_P: RECOMMENDED_TOP_P,
     CONF_THINKING_ENABLED: DEFAULT_THINKING_ENABLED,
@@ -465,6 +470,19 @@ def deepseek_config_option_schema(
             ),
         ): NumberSelector(
             NumberSelectorConfig(min=1, max=MAX_TOKENS_UPPER_BOUND, mode="box", step=1)
+        ),
+        vol.Optional(
+            CONF_MAX_TOOL_ITERATIONS,
+            description={"suggested_value": options.get(CONF_MAX_TOOL_ITERATIONS)},
+            default=coerce_max_tool_iterations(
+                options.get(
+                    CONF_MAX_TOOL_ITERATIONS, RECOMMENDED_MAX_TOOL_ITERATIONS
+                )
+            ),
+        ): NumberSelector(
+            NumberSelectorConfig(
+                min=1, max=MAX_TOOL_ITERATIONS_UPPER_BOUND, mode="box", step=1
+            )
         ),
         vol.Optional(
             CONF_THINKING_ENABLED,

@@ -12,6 +12,7 @@ LOGGER: logging.Logger = logging.getLogger(__package__)
 # Configuration keys
 CONF_CHAT_MODEL = "chat_model"
 CONF_MAX_TOKENS = "max_tokens"
+CONF_MAX_TOOL_ITERATIONS = "max_tool_iterations"
 CONF_PROMPT = "prompt"
 CONF_TEMPERATURE = "temperature"
 CONF_TOP_P = "top_p"
@@ -38,6 +39,8 @@ CHAT_MODEL_OPTIONS: tuple[tuple[str, str], ...] = (
 )
 
 RECOMMENDED_MAX_TOKENS = 1500
+RECOMMENDED_MAX_TOOL_ITERATIONS = 10
+MAX_TOOL_ITERATIONS_UPPER_BOUND = 20
 RECOMMENDED_TEMPERATURE = 1.0
 RECOMMENDED_TOP_P = 1.0
 DEFAULT_THINKING_ENABLED = False
@@ -82,6 +85,17 @@ def coerce_max_tokens(value: Any, *, fallback: int = RECOMMENDED_MAX_TOKENS) -> 
     except (TypeError, ValueError):
         return fallback
     return max(1, min(n, MAX_TOKENS_UPPER_BOUND))
+
+
+def coerce_max_tool_iterations(
+    value: Any, *, fallback: int = RECOMMENDED_MAX_TOOL_ITERATIONS
+) -> int:
+    """Parse max_tool_iterations from config options; clamp to [1, MAX_TOOL_ITERATIONS_UPPER_BOUND]."""
+    try:
+        n = int(float(value))
+    except (TypeError, ValueError):
+        return fallback
+    return max(1, min(n, MAX_TOOL_ITERATIONS_UPPER_BOUND))
 
 
 def normalized_reasoning_effort(value: Any) -> str:
