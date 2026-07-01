@@ -9,6 +9,16 @@
                     "chat_model": "Model"
                 },
                 "description": "Connect to the DeepSeek API. Default model is DeepSeek V4 Flash. Legacy names deepseek-chat and deepseek-reasoner still work but are removed after 2026-07-24 — switch to V4 in options when ready."
+            },
+            "reauth_confirm": {
+                "title": "Reauthenticate DeepSeek",
+                "description": "Your DeepSeek API key was rejected. Enter a valid API key to restore the integration.",
+                "data": {
+                    "api_key": "API Key"
+                },
+                "data_description": {
+                    "api_key": "API key from platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -19,7 +29,8 @@
             "url_required": "Base URL is required"
         },
         "abort": {
-            "already_configured": "Already configured"
+            "already_configured": "Already configured",
+            "reauth_successful": "Reauthentication was successful."
         }
     },
     "options": {

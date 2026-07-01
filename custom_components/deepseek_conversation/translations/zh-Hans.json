@@ -9,6 +9,16 @@
                     "chat_model": "模型"
                 },
                 "description": "连接 DeepSeek API。默认模型为 DeepSeek V4 Flash。旧名称 deepseek-chat 与 deepseek-reasoner 仍可用，但将于 2026-07-24 停用——请适时在选项中改用 V4。"
+            },
+            "reauth_confirm": {
+                "title": "重新验证 DeepSeek",
+                "description": "您的 DeepSeek API 密钥被拒绝。请输入有效的 API 密钥以恢复集成。",
+                "data": {
+                    "api_key": "API 密钥"
+                },
+                "data_description": {
+                    "api_key": "来自 platform.deepseek.com 的 API 密钥"
+                }
             }
         },
         "error": {
@@ -19,7 +29,8 @@
             "url_required": "必须填写基础地址"
         },
         "abort": {
-            "already_configured": "已配置过"
+            "already_configured": "已配置过",
+            "reauth_successful": "重新验证成功。"
         }
     },
     "options": {

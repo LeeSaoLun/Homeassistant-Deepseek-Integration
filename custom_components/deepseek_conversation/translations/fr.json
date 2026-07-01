@@ -9,6 +9,16 @@
                     "chat_model": "Modèle"
                 },
                 "description": "Connexion à l’API DeepSeek. Le modèle par défaut est DeepSeek V4 Flash. Les anciens noms deepseek-chat et deepseek-reasoner fonctionnent encore mais seront retirés après le 2026-07-24 — passez à V4 dans les options quand vous êtes prêt."
+            },
+            "reauth_confirm": {
+                "title": "Réauthentifier DeepSeek",
+                "description": "Votre clé API DeepSeek a été refusée. Saisissez une clé API valide pour rétablir l’intégration.",
+                "data": {
+                    "api_key": "Clé API"
+                },
+                "data_description": {
+                    "api_key": "Clé API depuis platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -19,7 +29,8 @@
             "url_required": "L’URL de base est obligatoire"
         },
         "abort": {
-            "already_configured": "Déjà configuré"
+            "already_configured": "Déjà configuré",
+            "reauth_successful": "Réauthentification réussie."
         }
     },
     "options": {

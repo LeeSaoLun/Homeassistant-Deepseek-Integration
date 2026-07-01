@@ -9,6 +9,16 @@
                     "chat_model": "Modell"
                 },
                 "description": "Verbindung zur DeepSeek-API. Standard ist DeepSeek V4 Flash. Die Legacy-Namen deepseek-chat und deepseek-reasoner funktionieren noch, entfallen aber ab 2026-07-24 — rechtzeitig auf V4 umstellen."
+            },
+            "reauth_confirm": {
+                "title": "DeepSeek erneut anmelden",
+                "description": "Dein DeepSeek-API-Schlüssel wurde abgelehnt. Gib einen gültigen API-Schlüssel ein, um die Integration wiederherzustellen.",
+                "data": {
+                    "api_key": "API-Schlüssel"
+                },
+                "data_description": {
+                    "api_key": "API-Schlüssel von platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -19,7 +29,8 @@
             "url_required": "Basis-URL ist erforderlich"
         },
         "abort": {
-            "already_configured": "Bereits konfiguriert"
+            "already_configured": "Bereits konfiguriert",
+            "reauth_successful": "Erneute Anmeldung war erfolgreich."
         }
     },
     "options": {
