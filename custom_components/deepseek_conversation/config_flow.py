@@ -57,6 +57,10 @@ from .const import (
     RECOMMENDED_TOP_P,
 )
 
+# Options flow: after toggling thinking, the form is shown once more with matching
+# fields. This context key records that refresh so the next OK saves instead of looping.
+_CTX_THINKING_SCHEMA_REFRESH = "deepseek_thinking_schema_refresh"
+
 
 def _normalize_llm_hass_api(value: Any) -> list[str] | None:
     """Normalize CONF_LLM_HASS_API to a list for multi-select, or None if unset."""
@@ -283,6 +287,9 @@ class DeepSeekOptionsFlow(OptionsFlow):
         
         errors: dict[str, str] = {}
 
+        if user_input is None:
+            self.context.pop(_CTX_THINKING_SCHEMA_REFRESH, None)
+
         if user_input is not None:
             # Handle CONF_LLM_HASS_API selection
             normalized = _normalize_llm_hass_api(user_input.get(CONF_LLM_HASS_API))
@@ -320,26 +327,36 @@ class DeepSeekOptionsFlow(OptionsFlow):
                     user_input.pop(CONF_REASONING_EFFORT, None)
 
                 if new_thinking != saved_thinking:
-                    LOGGER.debug(
-                        "[Debug config_flow]: thinking_enabled %s -> %s, "
-                        "refreshing options form",
-                        saved_thinking,
-                        new_thinking,
-                    )
-                    schema = deepseek_config_option_schema(
-                        self.hass,
-                        config_entry.options,
-                        config_entry,
-                        thinking_enabled=new_thinking,
-                    )
-                    suggested = {**dict(config_entry.options), **user_input}
-                    return self.async_show_form(
-                        step_id="init",
-                        data_schema=self.add_suggested_values_to_schema(
-                            vol.Schema(schema), suggested
-                        ),
-                        errors=errors,
-                    )
+                    if self.context.get(_CTX_THINKING_SCHEMA_REFRESH) == new_thinking:
+                        # User already saw the updated form; persist on this OK.
+                        self.context.pop(_CTX_THINKING_SCHEMA_REFRESH, None)
+                        LOGGER.debug(
+                            "[Debug config_flow]: thinking_enabled confirmed as %s, "
+                            "saving options",
+                            new_thinking,
+                        )
+                    else:
+                        self.context[_CTX_THINKING_SCHEMA_REFRESH] = new_thinking
+                        LOGGER.debug(
+                            "[Debug config_flow]: thinking_enabled %s -> %s, "
+                            "refreshing options form once",
+                            saved_thinking,
+                            new_thinking,
+                        )
+                        schema = deepseek_config_option_schema(
+                            self.hass,
+                            config_entry.options,
+                            config_entry,
+                            thinking_enabled=new_thinking,
+                        )
+                        suggested = {**dict(config_entry.options), **user_input}
+                        return self.async_show_form(
+                            step_id="init",
+                            data_schema=self.add_suggested_values_to_schema(
+                                vol.Schema(schema), suggested
+                            ),
+                            errors=errors,
+                        )
 
                 # Merge new user input with existing options before creating entry
                 updated_options = {**config_entry.options, **user_input}
