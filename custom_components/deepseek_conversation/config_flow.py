@@ -118,6 +118,27 @@ DEFAULT_OPTIONS = {
 }
 
 
+_PROBE_TIMEOUT = 10.0
+
+
+async def async_probe_deepseek_client(client: openai.AsyncOpenAI) -> None:
+    """Validate credentials via ``models.list()`` without using completion quota.
+
+    OpenAI-compatible gateways without ``/models`` (404/405/501) are skipped so the
+    first real chat call can surface auth issues. Used by config_flow and __init__.
+    """
+    try:
+        await client.with_options(timeout=_PROBE_TIMEOUT).models.list()
+    except openai.APIStatusError as err:
+        if err.status_code in (404, 405, 501):
+            _LOGGER.debug(
+                "DeepSeek base URL does not implement /models (%s); skipping probe",
+                err.status_code,
+            )
+            return
+        raise
+
+
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
     """Validate the user input allows us to connect."""
     base_url = data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL)
@@ -125,19 +146,16 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
         base_url = base_url.strip()
     if not base_url:
         base_url = DEEPSEEK_API_BASE_URL
-    
-    model = data.get(CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL)
-    
+
     client = openai.AsyncOpenAI(
         api_key=data[CONF_API_KEY],
         base_url=base_url,
-        http_client=get_async_client(hass)
+        http_client=get_async_client(hass),
     )
-    await client.with_options(timeout=10.0).chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": "Hi"}],
-        max_tokens=1,
-    )
+    try:
+        await async_probe_deepseek_client(client)
+    finally:
+        await client.close()
 
 
 class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -162,6 +180,12 @@ class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except openai.AuthenticationError:
             errors["base"] = "invalid_auth"
+        except openai.APIStatusError as err:
+            if err.status_code in (401, 403):
+                errors["base"] = "invalid_auth"
+            else:
+                _LOGGER.error("DeepSeek API status error during validation: %s", err)
+                errors["base"] = "api_error"
         except openai.OpenAIError as e:
             _LOGGER.error("DeepSeek API error during validation: %s", e)
             errors["base"] = "api_error"
@@ -208,9 +232,6 @@ class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_BASE_URL: reauth_entry.data.get(
                     CONF_BASE_URL, DEEPSEEK_API_BASE_URL
                 ),
-                CONF_CHAT_MODEL: reauth_entry.options.get(
-                    CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL
-                ),
             }
             try:
                 await validate_input(self.hass, validate_data)
@@ -218,6 +239,12 @@ class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except openai.AuthenticationError:
                 errors["base"] = "invalid_auth"
+            except openai.APIStatusError as err:
+                if err.status_code in (401, 403):
+                    errors["base"] = "invalid_auth"
+                else:
+                    _LOGGER.error("DeepSeek API status error during reauth: %s", err)
+                    errors["base"] = "api_error"
             except openai.OpenAIError as e:
                 _LOGGER.error("DeepSeek API error during reauth: %s", e)
                 errors["base"] = "api_error"

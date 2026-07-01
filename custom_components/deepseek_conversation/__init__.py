@@ -34,6 +34,7 @@ from homeassistant.helpers.typing import ConfigType  # pyright: ignore[reportMis
 from typing import TypeAlias  # pyright: ignore[reportMissingImports]
 
 from .api_errors import openai_exception_user_message
+from .config_flow import async_probe_deepseek_client
 from .debug import async_run_debug_suite
 
 # Updated imports from const.py
@@ -290,14 +291,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
         http_client=get_async_client(hass),
     )
 
-    # Validate the connection using ``models.list()`` instead of a chat
-    # completion: it does not consume tokens / quota on the DeepSeek free tier
-    # and still surfaces auth failures. Some OpenAI-compatible gateways do not
-    # implement ``/models``; in that case we skip the probe and let the first
-    # real conversation call surface any auth issue (which then triggers
-    # reauth via ``ConfigEntryAuthFailed``).
+    # Validate via models.list() — no completion quota; see config_flow.async_probe_deepseek_client
     try:
-        await client.with_options(timeout=10.0).models.list()
+        await async_probe_deepseek_client(client)
     except openai.AuthenticationError as err:
         LOGGER.error("Invalid DeepSeek API key: %s", err)
         raise ConfigEntryAuthFailed("Invalid DeepSeek API key") from err
@@ -305,21 +301,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> 
         if err.status_code in (401, 403):
             LOGGER.error("DeepSeek rejected credentials (%s): %s", err.status_code, err)
             raise ConfigEntryAuthFailed("Invalid DeepSeek credentials") from err
-        if err.status_code in (404, 405, 501):
-            LOGGER.debug(
-                "DeepSeek base URL does not implement /models (%s); "
-                "skipping setup probe",
-                err.status_code,
-            )
-        else:
-            LOGGER.warning(
-                "Unexpected DeepSeek status during setup probe (%s): %s",
-                err.status_code,
-                err,
-            )
-            raise ConfigEntryNotReady(
-                f"DeepSeek API returned {err.status_code}: {err}"
-            ) from err
+        LOGGER.warning(
+            "Unexpected DeepSeek status during setup probe (%s): %s",
+            err.status_code,
+            err,
+        )
+        raise ConfigEntryNotReady(
+            f"DeepSeek API returned {err.status_code}: {err}"
+        ) from err
     except openai.APIConnectionError as err:
         LOGGER.error("Failed to connect to DeepSeek API: %s", err)
         raise ConfigEntryNotReady(
