@@ -114,7 +114,6 @@ def _image_part_from_path(
 
 def _read_image_parts_from_paths(
     files: list[tuple[Path, str | None]],
-    *,
     strict: bool,
 ) -> tuple[list[dict[str, Any]], int]:
     parts: list[dict[str, Any]] = []
@@ -156,7 +155,7 @@ async def async_image_parts_from_paths(
     ``strict=False`` (generate_content service): log and skip disallowed files.
     """
     parts, total_bytes = await hass.async_add_executor_job(
-        _read_image_parts_from_paths, files, strict=strict
+        _read_image_parts_from_paths, files, strict
     )
     if parts:
         LOGGER.debug(
