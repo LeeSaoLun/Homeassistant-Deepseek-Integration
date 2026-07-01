@@ -1,4 +1,5 @@
 ![Release](https://img.shields.io/github/v/release/leofleischmann/Homeassistant-Deepseek-Integration?label=Version)
+![Release downloads](https://img.shields.io/github/downloads/leofleischmann/Homeassistant-Deepseek-Integration/deepseek_conversation.zip/total?label=Release%20downloads)
 
 # DeepSeek Conversation
 
@@ -19,7 +20,9 @@ Community project — not part of Home Assistant Core.
 
 ## Install
 
-**HACS:** Custom repository `leofleischmann/Homeassistant-Deepseek-Integration` (Integration) → install → restart.
+**HACS:** [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=leofleischmann&repository=Homeassistant-Deepseek-Integration&category=integration) → install → restart.
+
+Release download count (badge above) tracks the `deepseek_conversation.zip` asset on GitHub, not the number shown inside HACS.
 
 **Manual:** Copy `custom_components/deepseek_conversation/` into your config folder → restart.
 
