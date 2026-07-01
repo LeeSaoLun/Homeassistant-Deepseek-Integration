@@ -13,7 +13,7 @@ from homeassistant.helpers import device_registry as dr  # pyright: ignore[repor
 
 from .const import DOMAIN
 from .types import DeepSeekConfigEntry
-from .usage_metrics import CompletionUsage, UsageTracker, connection_changed_since_last_setup
+from .usage_metrics import CompletionUsage, UsageTracker
 
 
 class DeepSeekUsageCounterSensor(RestoreSensor, SensorEntity):
@@ -30,10 +30,8 @@ class DeepSeekUsageCounterSensor(RestoreSensor, SensorEntity):
         *,
         unit: str,
         icon: str,
-        reset_on_add: bool = False,
     ) -> None:
         self._entry = entry
-        self._reset_on_add = reset_on_add
         self._attr_translation_key = translation_key
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
         self._attr_native_unit_of_measurement = unit
@@ -44,9 +42,6 @@ class DeepSeekUsageCounterSensor(RestoreSensor, SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if self._reset_on_add:
-            self._attr_native_value = 0
-            return
         if (last_state := await self.async_get_last_state()) is not None:
             try:
                 self._attr_native_value = int(float(last_state.state))
@@ -78,22 +73,14 @@ class DeepSeekSnapshotSensor(SensorEntity):
         entry: DeepSeekConfigEntry,
         translation_key: str,
         unique_suffix: str,
-        *,
-        reset_on_add: bool = False,
     ) -> None:
         self._entry = entry
-        self._reset_on_add = reset_on_add
         self._attr_translation_key = translation_key
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
         )
         self._attr_native_value = 0
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        if self._reset_on_add:
-            self.reset_to_zero()
 
     def set_value(self, value: int) -> None:
         self._attr_native_value = value
@@ -112,19 +99,13 @@ class DeepSeekLastRequestSensor(SensorEntity):
     _attr_icon = "mdi:history"
     _attr_translation_key = "last_request_tokens"
 
-    def __init__(self, entry: DeepSeekConfigEntry, *, reset_on_add: bool = False) -> None:
+    def __init__(self, entry: DeepSeekConfigEntry) -> None:
         self._entry = entry
-        self._reset_on_add = reset_on_add
         self._attr_unique_id = f"{entry.entry_id}_last_request_tokens"
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
         )
         self._attr_native_value = 0
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        if self._reset_on_add:
-            self.reset_to_zero()
 
     def set_usage(
         self, usage: CompletionUsage, *, source: str, request_count: int
@@ -155,17 +136,12 @@ async def async_setup_entry(
     runtime = entry.runtime_data
     tracker: UsageTracker = runtime.usage
 
-    connection_changed = connection_changed_since_last_setup(
-        hass, entry.entry_id, entry.data
-    )
-
     prompt = DeepSeekUsageCounterSensor(
         entry,
         "prompt_tokens",
         "prompt_tokens",
         unit="tokens",
         icon="mdi:counter",
-        reset_on_add=connection_changed,
     )
     completion = DeepSeekUsageCounterSensor(
         entry,
@@ -173,7 +149,6 @@ async def async_setup_entry(
         "completion_tokens",
         unit="tokens",
         icon="mdi:counter",
-        reset_on_add=connection_changed,
     )
     total = DeepSeekUsageCounterSensor(
         entry,
@@ -181,7 +156,6 @@ async def async_setup_entry(
         "total_tokens",
         unit="tokens",
         icon="mdi:counter",
-        reset_on_add=connection_changed,
     )
     reasoning = DeepSeekUsageCounterSensor(
         entry,
@@ -189,7 +163,6 @@ async def async_setup_entry(
         "reasoning_tokens",
         unit="tokens",
         icon="mdi:brain",
-        reset_on_add=connection_changed,
     )
     api_requests = DeepSeekUsageCounterSensor(
         entry,
@@ -197,20 +170,13 @@ async def async_setup_entry(
         "api_requests",
         unit="requests",
         icon="mdi:api",
-        reset_on_add=connection_changed,
     )
-    last_request = DeepSeekLastRequestSensor(entry, reset_on_add=connection_changed)
+    last_request = DeepSeekLastRequestSensor(entry)
     last_request_prompt = DeepSeekSnapshotSensor(
-        entry,
-        "last_request_prompt_tokens",
-        "last_request_prompt_tokens",
-        reset_on_add=connection_changed,
+        entry, "last_request_prompt_tokens", "last_request_prompt_tokens"
     )
     last_request_completion = DeepSeekSnapshotSensor(
-        entry,
-        "last_request_completion_tokens",
-        "last_request_completion_tokens",
-        reset_on_add=connection_changed,
+        entry, "last_request_completion_tokens", "last_request_completion_tokens"
     )
 
     tracker.bind_sensors(
@@ -236,8 +202,3 @@ async def async_setup_entry(
             last_request_completion,
         ]
     )
-
-    if connection_changed:
-        tracker.request_count = 0
-        tracker.last_usage = None
-        tracker.last_source = None

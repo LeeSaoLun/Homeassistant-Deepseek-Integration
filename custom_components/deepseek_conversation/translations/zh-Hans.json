@@ -26,6 +26,11 @@
             "last_request_completion_tokens": {
                 "name": "上次请求补全令牌"
             }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "重置用量"
+            }
         }
     },
     "common": {

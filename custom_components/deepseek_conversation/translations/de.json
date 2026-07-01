@@ -26,6 +26,11 @@
             "last_request_completion_tokens": {
                 "name": "Letzte Anfrage Completion-Token"
             }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "Nutzung zurücksetzen"
+            }
         }
     },
     "common": {

@@ -1,55 +1,23 @@
 """Token usage tracking for DeepSeek API completions.
 
 Updated by conversation.py (Assist stream), __init__.py (generate_content), and
-sensor.py (RestoreSensor entities). Stream usage requires stream_options in
-build_chat_completion_args().
-
-Connection fingerprint (base URL + API key) is compared on sensor setup; when it
-changes after reconfigure/reauth, cumulative counters reset (see sensor.py).
+sensor.py (RestoreSensor entities). Manual reset via button.py -> reset_all().
+Stream usage requires stream_options in build_chat_completion_args().
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
-from .const import CONF_API_KEY, CONF_BASE_URL, DEEPSEEK_API_BASE_URL, DOMAIN, LOGGER
+from .const import LOGGER
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
-
     from .sensor import (
         DeepSeekLastRequestSensor,
         DeepSeekSnapshotSensor,
         DeepSeekUsageCounterSensor,
     )
-
-_CONNECTION_FP_KEY = "connection_fingerprint"
-
-
-def connection_fingerprint(data: Mapping[str, Any]) -> str:
-    """Stable id for the API endpoint credentials (reconfigure/reauth detection)."""
-    base = data.get(CONF_BASE_URL) or DEEPSEEK_API_BASE_URL
-    key = data.get(CONF_API_KEY, "")
-    return f"{base}:{key}"
-
-
-def connection_changed_since_last_setup(
-    hass: HomeAssistant, entry_id: str, data: Mapping[str, Any]
-) -> bool:
-    """Return True when base URL or API key changed since the previous platform setup."""
-    fp = connection_fingerprint(data)
-    store = hass.data.setdefault(DOMAIN, {})
-    key = f"{entry_id}_{_CONNECTION_FP_KEY}"
-    previous = store.get(key)
-    store[key] = fp
-    changed = previous is not None and previous != fp
-    if changed:
-        LOGGER.info(
-            "[Debug usage_metrics]: connection changed for %s, usage counters will reset",
-            entry_id,
-        )
-    return changed
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,7 +119,7 @@ class UsageTracker:
         self._last_completion = last_request_completion
 
     def reset_all(self) -> None:
-        """Zero cumulative and snapshot sensors after API connection change."""
+        """Zero all usage sensors (button entity or service)."""
         self.request_count = 0
         self.last_usage = None
         self.last_source = None
@@ -170,7 +138,7 @@ class UsageTracker:
             self._last_prompt.reset_to_zero()
         if self._last_completion is not None:
             self._last_completion.reset_to_zero()
-        LOGGER.info("[Debug usage_metrics]: usage counters reset after connection change")
+        LOGGER.info("[Debug usage_metrics]: usage counters reset manually")
 
     def record(self, usage: CompletionUsage, *, source: str) -> None:
         """Add one API completion's usage to cumulative sensors."""

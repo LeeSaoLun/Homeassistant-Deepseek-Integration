@@ -26,6 +26,11 @@
             "last_request_completion_tokens": {
                 "name": "Dernière requête (jetons complétion)"
             }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "Réinitialiser l'utilisation"
+            }
         }
     },
     "common": {

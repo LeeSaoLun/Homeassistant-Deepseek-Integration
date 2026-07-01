@@ -54,7 +54,7 @@ from .usage_metrics import UsageTracker, completion_usage_from_api
 SERVICE_GENERATE_CONTENT = "generate_content"
 SERVICE_RUN_DEBUG = "run_debug"
 
-PLATFORMS = (Platform.CONVERSATION, Platform.SENSOR)
+PLATFORMS = (Platform.CONVERSATION, Platform.SENSOR, Platform.BUTTON)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
