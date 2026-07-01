@@ -1,4 +1,52 @@
 {
+    "title": "DeepSeek Conversation",
+    "entity": {
+        "sensor": {
+            "prompt_tokens": {
+                "name": "Jetons du prompt"
+            },
+            "completion_tokens": {
+                "name": "Jetons de complétion"
+            },
+            "total_tokens": {
+                "name": "Jetons totaux"
+            },
+            "last_request_tokens": {
+                "name": "Dernière requête (jetons)"
+            },
+            "reasoning_tokens": {
+                "name": "Jetons de raisonnement"
+            },
+            "api_requests": {
+                "name": "Requêtes API"
+            },
+            "last_request_prompt_tokens": {
+                "name": "Dernière requête (jetons prompt)"
+            },
+            "last_request_completion_tokens": {
+                "name": "Dernière requête (jetons complétion)"
+            }
+        },
+        "button": {
+            "reset_usage": {
+                "name": "Réinitialiser l'utilisation"
+            }
+        }
+    },
+    "common": {
+        "debug_notification_title": "Diagnostic DeepSeek terminé",
+        "debug_notification_report": "Rapport : {path}",
+        "debug_notification_summary": "Résumé : {summary}",
+        "debug_notification_errors_heading": "Erreurs (le cas échéant) :",
+        "debug_notification_no_errors": "(aucune)",
+        "debug_notification_error_line": "- {name} : {error}",
+        "debug_notification_details": "Détails : ouvrez le fichier de rapport (texte + annexe JSON)."
+    },
+    "exceptions": {
+        "invalid_config_entry": {
+            "message": "L’entrée de configuration « {config_entry} » est introuvable ou n’appartient pas à DeepSeek Conversation."
+        }
+    },
     "config": {
         "step": {
             "user": {
@@ -9,6 +57,27 @@
                     "chat_model": "Modèle"
                 },
                 "description": "Connexion à l’API DeepSeek. Le modèle par défaut est DeepSeek V4 Flash. Les anciens noms deepseek-chat et deepseek-reasoner fonctionnent encore mais seront retirés après le 2026-07-24 — passez à V4 dans les options quand vous êtes prêt."
+            },
+            "reauth_confirm": {
+                "title": "Réauthentifier DeepSeek",
+                "description": "Votre clé API DeepSeek a été refusée. Saisissez une clé API valide pour rétablir l’intégration.",
+                "data": {
+                    "api_key": "Clé API"
+                },
+                "data_description": {
+                    "api_key": "Clé API depuis platform.deepseek.com"
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigurer DeepSeek",
+                "description": "Mettez à jour la clé API ou l’URL de base. Les options Assist et modèle restent inchangées.",
+                "data": {
+                    "api_key": "Clé API",
+                    "base_url": "URL de base de l’API"
+                },
+                "data_description": {
+                    "api_key": "Clé API depuis platform.deepseek.com"
+                }
             }
         },
         "error": {
@@ -19,28 +88,54 @@
             "url_required": "L’URL de base est obligatoire"
         },
         "abort": {
-            "already_configured": "Déjà configuré"
+            "already_configured": "Déjà configuré",
+            "reauth_successful": "Réauthentification réussie.",
+            "reconfigure_successful": "Reconfiguration réussie."
         }
     },
     "options": {
+        "abort": {
+            "config_entry_not_available": "L’entrée de configuration n’est plus disponible."
+        },
+        "error": {
+            "cannot_connect": "Connexion impossible",
+            "invalid_auth": "Authentification invalide",
+            "api_error": "Erreur d’API",
+            "unknown": "Erreur inconnue",
+            "url_required": "L’URL de base est obligatoire"
+        },
         "step": {
             "init": {
                 "title": "Options DeepSeek",
-                "description": "DeepSeek V4 utilise un seul modèle pour le chat et le raisonnement : activez « Activer le raisonnement » pour envoyer la phase de réflexion à l’API (extra_body). L’effort de raisonnement ne s’applique que si le raisonnement est activé. La température et le top_p sont omis pendant le raisonnement. Les anciens identifiants de modèle fonctionnent jusqu’au 2026-07-24.",
+                "description": "Assist, modèle et comportement API. Pour la clé API ou l’URL de base, utilisez le menu de l’intégration (⋮ → Reconfigurer).",
                 "data": {
-                    "base_url": "URL de base de l’API",
                     "prompt": "Invite système",
                     "llm_hass_api": "API Home Assistant",
                     "chat_model": "Modèle",
                     "max_tokens": "Jetons max.",
+                    "max_tool_iterations": "Itérations d'outils max.",
                     "top_p": "Top P",
                     "temperature": "Température",
                     "thinking_enabled": "Activer le raisonnement",
                     "strip_markdown": "Supprimer le Markdown pour les assistants vocaux",
-                    "reasoning_effort": "Effort de raisonnement"
+                    "reasoning_effort": "Effort de raisonnement",
+                    "vision_enabled": "Autoriser la vision",
+                    "context_management_enabled": "Gestion du contexte",
+                    "max_tool_result_chars": "Taille max. résultat outil (car.)",
+                    "max_history_rounds": "Tours de conversation max."
                 },
                 "data_description": {
-                    "llm_hass_api": "Aucune sélection = aucun contrôle"
+                    "llm_hass_api": "Aucune sélection = aucun contrôle",
+                    "thinking_enabled": "Si activé, l’API utilise l’effort de raisonnement ; température et top_p sont ignorés.",
+                    "reasoning_effort": "Utilisé uniquement si le raisonnement est activé.",
+                    "temperature": "Utilisé uniquement si le raisonnement est désactivé.",
+                    "top_p": "Utilisé uniquement si le raisonnement est désactivé.",
+                    "chat_model": "Les anciens identifiants deepseek-chat et deepseek-reasoner fonctionnent jusqu’au 2026-07-24.",
+                    "max_tool_iterations": "Nombre maximal de tours API lorsque le modèle appelle des outils Home Assistant (1–20). Chaque tour peut exécuter un ou plusieurs outils.",
+                    "vision_enabled": "Si activé, Assist peut envoyer des images en pièce jointe et generate_content peut utiliser des chemins de fichiers. Fonctionne uniquement avec une URL de base OpenAI-compatible personnalisée prenant en charge le multimodal ; l’endpoint officiel api.deepseek.com est texte seul. Déclare SUPPORT_ATTACHMENTS à Home Assistant lorsque disponible.",
+                    "context_management_enabled": "Si activé, les grands résultats d’outils Home Assistant (ex. GetLiveContext) sont raccourcis avant l’appel API pour limiter les erreurs de contexte.",
+                    "max_tool_result_chars": "Nombre maximal de caractères par résultat JSON d’outil (défaut 12000). 0 = pas de troncature. Uniquement si la gestion du contexte est activée.",
+                    "max_history_rounds": "Nombre maximal de tours utilisateur conservés dans l’historique Assist (défaut 0 = illimité). Les tours complets les plus anciens sont supprimés avant chaque appel API ; l’invite système et le tour en cours (y compris les chaînes d’outils) restent intacts."
                 }
             }
         }
@@ -53,9 +148,56 @@
                 "deepseek-chat": "Ancien : deepseek-chat (jusqu’au 2026-07-24)",
                 "deepseek-reasoner": "Ancien : deepseek-reasoner (jusqu’au 2026-07-24)"
             }
+        },
+        "reasoning_effort": {
+            "options": {
+                "low": "Faible",
+                "medium": "Moyen",
+                "high": "Élevé",
+                "max": "Max",
+                "xhigh": "Très élevé"
+            }
         }
     },
     "services": {
+        "generate_content": {
+            "name": "Générer du contenu",
+            "description": "Envoie une invite à DeepSeek et renvoie la réponse. Overrides optionnels par appel : modèle, température, raisonnement, max_tokens et format JSON. Si le raisonnement est activé, la réponse inclut aussi un champ `reasoning` avec le texte de réflexion du modèle.",
+            "fields": {
+                "config_entry": {
+                    "name": "Entrée d’intégration",
+                    "description": "Entrée DeepSeek Conversation à utiliser."
+                },
+                "prompt": {
+                    "name": "Invite",
+                    "description": "Message utilisateur envoyé au modèle."
+                },
+                "filenames": {
+                    "name": "Chemins de fichiers",
+                    "description": "Chemins d’images locaux optionnels (doivent être autorisés dans allowlist_external_dirs)."
+                },
+                "chat_model": {
+                    "name": "Modèle",
+                    "description": "Remplace le modèle pour cet appel uniquement. Sinon, option de l’intégration."
+                },
+                "temperature": {
+                    "name": "Température",
+                    "description": "Remplace la température (0–2) pour cet appel. Ignoré si le raisonnement est activé pour cet appel."
+                },
+                "thinking_enabled": {
+                    "name": "Activer le raisonnement",
+                    "description": "Remplace le raisonnement pour cet appel. Si activé, température et top_p de l’intégration ne sont pas envoyés."
+                },
+                "max_tokens": {
+                    "name": "Jetons max.",
+                    "description": "Remplace la limite de jetons de la réponse pour cet appel uniquement."
+                },
+                "response_format": {
+                    "name": "Format de réponse",
+                    "description": "Définir sur json_object pour demander une réponse JSON au modèle."
+                }
+            }
+        },
         "run_debug": {
             "name": "Lancer le diagnostic DeepSeek",
             "description": "Diagnostic étendu : environnement, sonde HTTP, models.list optionnel, APIs LLM HA, registre d’entités, nombreux appels chat completions (flux et non-flux, thinking, message système, multi-tours, JSON, pings parallèles), extrait de journal et annexe JSON. Nombreux appels API courts ; écrit /config/deepseek_conversation_debug_report.txt et une notification courte (résumé + échecs).",
