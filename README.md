@@ -1,11 +1,11 @@
 ![Release](https://img.shields.io/github/v/release/leofleischmann/Homeassistant-Deepseek-Integration?label=Version)
 ![Release downloads](https://img.shields.io/github/downloads/leofleischmann/Homeassistant-Deepseek-Integration/deepseek_conversation.zip?label=Release%20downloads)
 
-# DeepSeek Conversation
+# Home Assistant DeepSeek Integration (DeepSeek Conversation)
 
-Connect [DeepSeek](https://api-docs.deepseek.com/) to Home Assistant as a **conversation agent** for Assist (voice and chat). The integration speaks the OpenAI-compatible Chat Completions API, so you can also point it at a compatible proxy via a custom base URL.
+Custom **Home Assistant DeepSeek integration** for **Assist** (voice and chat). Connect [DeepSeek](https://api-docs.deepseek.com/) as a conversation agent with optional smart home tools, reasoning, and automations. OpenAI-compatible API; custom base URL supported.
 
-Community project — not part of Home Assistant Core.
+Install via **HACS** (`deepseek_conversation`). Community project — not part of Home Assistant Core.
 
 **Requires:** Home Assistant 2026.1+, DeepSeek API key.
 
@@ -31,7 +31,7 @@ Legacy model ids (`deepseek-chat`, `deepseek-reasoner`) map to V4 until 2026-07-
 
 [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=leofleischmann&repository=Homeassistant-Deepseek-Integration&category=integration)
 
-HACS → install → restart Home Assistant.
+**HACS:** Integrations → search *DeepSeek Conversation* or add this repository → install → restart Home Assistant.
 
 Release download badge counts GitHub `deepseek_conversation.zip` assets, not the number inside HACS.
 
