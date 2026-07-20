@@ -78,8 +78,11 @@ def deepseek_chat_extra_body(*, thinking_enabled: bool) -> dict[str, Any]:
     ``disabled`` explicitly when the integration option is off. See conversation.py
     and build_chat_completion_args().
     """
-    return {"thinking": {"type": "enabled" if thinking_enabled else "disabled"}}
-
+#    return {"thinking": {"type": "enabled" if thinking_enabled else "disabled"}}
+    return {
+        "thinking": {"type": "enabled" if thinking_enabled else "disabled"},
+        "search_enable": True  # <-- Добавленная строка для включения веб-поиска
+    }
 
 def model_uses_deepseek_thinking_api(model: str) -> bool:
     """Whether to send DeepSeek ``extra_body.thinking`` for this model id."""
