@@ -5,7 +5,7 @@ All notable changes to this integration.
 ## [1.3.2] - 2026-07-20
 
 ### Added
-- **search_enable**
+- **search_enable** 
     return {
         "thinking": {"type": "enabled" if thinking_enabled else "disabled"},
         "search_enable": True  # <-- Добавленная строка для включения веб-поиска
