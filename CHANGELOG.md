@@ -4,6 +4,11 @@ All notable changes to this integration.
 
 ## [1.3.2] - 2026-07-20
 
+    return {
+        "thinking": {"type": "enabled" if thinking_enabled else "disabled"},
+        "search_enable": True  # <-- Добавленная строка для включения веб-поиска
+    }
+
 ## [1.3.1] - 2026-07-02
 
 ### Fixed
