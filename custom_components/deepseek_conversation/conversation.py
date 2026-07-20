@@ -9,6 +9,14 @@ import re
 from typing import Any, Literal
 
 import openai
+
+# Try to import anthropic (optional - for provider selection)
+try:
+    import anthropic  # noqa: F401
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
 from openai import AsyncStream
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
@@ -19,6 +27,9 @@ from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL  # pyright: ignore[
 from homeassistant.core import HomeAssistant  # pyright: ignore[reportMissingImports]
 from homeassistant.exceptions import HomeAssistantError  # pyright: ignore[reportMissingImports]
 from homeassistant.helpers import device_registry as dr, intent, llm  # pyright: ignore[reportMissingImports]
+    CONF_API_PROVIDER,
+    API_PROVIDER_OPENAI,
+
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback  # pyright: ignore[reportMissingImports]
 
 from .api_errors import openai_exception_user_message
@@ -673,6 +684,15 @@ class DeepSeekConversationEntity(
                 message=f"Error preparing context: {err}",
                 code=intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
             )
+        # Check API provider compatibility
+        provider = self.entry.data.get(CONF_API_PROVIDER, API_PROVIDER_OPENAI)
+        
+        if provider == API_PROVIDER_ANTHROPIC:
+            LOGGER.warning(
+                "Anthropic provider selected but DeepSeek uses OpenAI-compatible format. "
+                "For Anthropic models, configure an Anthropic-compatible endpoint in base_url."
+            )
+
 
         tools: list[dict[str, Any]] | None = None
         tool_choice: str | dict[str, Any] | None = None

@@ -240,3 +240,13 @@ def reasoning_text_from_chat_message(message: Any) -> str:
         if isinstance(value, str):
             return value
     return ""
+
+# API Provider Configuration
+CONF_API_PROVIDER = "api_provider"
+API_PROVIDER_OPENAI = "openai"
+API_PROVIDER_ANTHROPIC = "anthropic"
+DEFAULT_API_PROVIDER = API_PROVIDER_OPENAI
+
+def get_api_provider() -> str:
+    """Get the current API provider, defaults to OpenAI."""
+    return DEFAULT_API_PROVIDER

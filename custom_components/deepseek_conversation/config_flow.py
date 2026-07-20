@@ -6,6 +6,14 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any
 
+
+# Try to import anthropic for provider selection (optional)
+try:
+    import anthropic  # noqa: F401
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
 import openai
 import voluptuous as vol  # pyright: ignore[reportMissingImports]
 
@@ -39,6 +47,10 @@ from .context_trim import (
     coerce_max_history_rounds,
     coerce_max_tool_result_chars,
 )
+    CONF_API_PROVIDER,
+    API_PROVIDER_OPENAI,
+    API_PROVIDER_ANTHROPIC,
+
 from .const import (
     CHAT_MODEL_OPTIONS,
     coerce_max_tokens,
@@ -107,6 +119,22 @@ def _api_key_selector() -> TextSelector:
             type=TextSelectorType.PASSWORD,
             autocomplete="current-password",
         )
+def _api_provider_selector() -> SelectSelector:
+    """Return selector for API provider choice."""
+    options = [SelectOptionDict(value=API_PROVIDER_OPENAI, label="OpenAI")]
+    if HAS_ANTHROPIC:
+        options.append(SelectOptionDict(value=API_PROVIDER_ANTHROPIC, label="Anthropic (via proxy)"))
+    
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=options,
+            mode=SelectSelectorMode.Dropdown,
+        )
+    )
+
+
+def get_user_step_schema() -> vol.Schema:
+
     )
 
 
@@ -126,6 +154,11 @@ def get_user_step_schema() -> vol.Schema:
             vol.Required(CONF_API_KEY): _api_key_selector(),
             vol.Optional(CONF_BASE_URL, default=DEEPSEEK_API_BASE_URL): _base_url_selector(),
             vol.Optional(
+            vol.Optional(
+                CONF_API_PROVIDER,
+                default=DEFAULT_API_PROVIDER
+            ): _api_provider_selector(),
+
                 CONF_CHAT_MODEL, default=RECOMMENDED_CHAT_MODEL
             ): _chat_model_selector(),
         }
@@ -293,6 +326,8 @@ class DeepSeekConfigFlow(ConfigFlow, domain=DOMAIN):
             # Separate data (connection settings) from options (model settings)
             entry_data = {
                 CONF_API_KEY: user_input[CONF_API_KEY],
+                CONF_API_PROVIDER: user_input.get(CONF_API_PROVIDER, DEFAULT_API_PROVIDER),
+
                 CONF_BASE_URL: user_input.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL),
             }
             # Move chat_model to options if provided

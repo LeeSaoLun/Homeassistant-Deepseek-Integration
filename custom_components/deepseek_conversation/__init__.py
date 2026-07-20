@@ -45,6 +45,9 @@ from .const import (
     DEFAULT_SYSTEM_PROMPT,
     DEEPSEEK_API_BASE_URL,
     DOMAIN,
+    CONF_API_PROVIDER,
+    API_PROVIDER_OPENAI,
+
     effective_thinking_enabled_for_generate_content,
     LOGGER,
     MAX_TOKENS_UPPER_BOUND,
@@ -104,6 +107,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         if entry is None or entry.domain != DOMAIN:
             raise ServiceValidationError(
+    # Import anthropic if available (for provider support)
+    try:
+        import anthropic  # noqa: F401
+        HAS_ANTHROPIC = True
+    except ImportError:
+        HAS_ANTHROPIC = False
+
                 translation_domain=DOMAIN,
                 translation_key="invalid_config_entry",
                 translation_placeholders={"config_entry": entry_id},
@@ -161,6 +171,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                         CONF_RESPONSE_FORMAT,
                     )
                     if k in call.data
+            # Warn if Anthropic provider selected but OpenAI format required
+            provider = entry.data.get(CONF_API_PROVIDER, API_PROVIDER_OPENAI)
+            if provider == API_PROVIDER_ANTHROPIC:
+                LOGGER.warning(
+                    "Anthropic provider selected but DeepSeek uses OpenAI-compatible format. "
+                    "For Anthropic models, configure an Anthropic-compatible endpoint in base_url."
+                )
+
                 },
             )
             response = await client.chat.completions.create(**model_args)
@@ -309,6 +327,24 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: DeepSeekConfigEntry) -> bool:
     """Set up DeepSeek Conversation from a config entry."""
     base_url = entry.data.get(CONF_BASE_URL, DEEPSEEK_API_BASE_URL)
+    # Select API provider and create appropriate client
+    provider = entry.data.get(CONF_API_PROVIDER, API_PROVIDER_OPENAI)
+    
+    if provider == API_PROVIDER_ANTHROPIC and not HAS_ANTHROPIC:
+        LOGGER.error("Anthropic provider selected but anthropic library not installed")
+        raise ConfigEntryNotReady("Anthropic library required for Anthropic provider")
+    
+    # For now, only OpenAI is fully supported with DeepSeek
+    # Anthropic would require a gateway/proxy service
+    if provider == API_PROVIDER_ANTHROPIC:
+        LOGGER.warning(
+            "Anthropic provider selected. Note: Direct Anthropic SDK cannot communicate with "
+            "DeepSeek's OpenAI-compatible endpoint. Use an OpenAI-compatible API or configure a proxy."
+        )
+    
+    # Create OpenAI client (DeepSeek uses OpenAI format)
+    client = openai.AsyncOpenAI(
+
     client = openai.AsyncOpenAI(
         api_key=entry.data[CONF_API_KEY],
         base_url=base_url,
